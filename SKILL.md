@@ -80,14 +80,26 @@ Problems live in Jupyter notebooks, one notebook per day. The user can run cells
 
 ```
 challenges/
-└── d{NN}/                   # one folder per day (d01, d02, ...)
-    ├── d{NN}.ipynb          # single notebook holding all problems for the day
-    └── input/               # data files per Input Convention (target + decoys)
-        ├── ...target...
-        └── ...decoys...
+├── d{NN}/                   # warm-up / practice day (d01, d02, ...)
+│   ├── d{NN}.ipynb          # single notebook holding all problems for the day
+│   └── input/               # data files per Input Convention (target + decoys)
+│       ├── ...target...
+│       └── ...decoys...
+└── mock{N}/                 # mock exam (mock1, mock2, ...) — DIFFERENT layout
+    ├── q1/
+    │   ├── q1.ipynb         # per-question notebook (one Q = one notebook)
+    │   ├── input/           # this question's input files (with decoys)
+    │   └── output/          # this question's solution writes here
+    ├── q2/
+    │   ├── q2.ipynb
+    │   ├── input/
+    │   └── output/
+    └── ...
 ```
 
-Examples: `challenges/d01/d01.ipynb`, `challenges/d06/input/app-2026-06-01.log`.
+Examples: `challenges/d01/d01.ipynb`, `challenges/mock1/q3/input/access-2026-06-01.log`.
+
+**Why mocks differ from practice days:** Mock questions must be fully independent — own folder, own I/O, own notebook — to simulate the real assessment (each problem is a self-contained pipeline the user owns end-to-end). Practice days share a notebook to keep iteration fast. See [mock-exam-guide.md](mock-exam-guide.md) for the full mock structure rules.
 
 ### 3-Part Notebook Structure (warm-up days)
 
@@ -338,13 +350,19 @@ DE problem difficulty has two dimensions that vary independently. Always tag pro
 
 ### Axis 1: Reading Load
 
+Anchor: a Hard problem's spec must contain **≥3 paragraphs of business scenario** prose — multiple stakeholders, business rules, and edge case clauses buried in narrative. If you can read the entire spec in one screen at a glance, it is not Hard.
+
 | Level | Target reading time | Characteristics |
 |---|---|---|
-| **簡單 Easy** | ~1 min | One short paragraph or 2-3 bullet rules. No nested business context. Sample input/output fits on one screen. |
-| **中等 Medium** | ~3 min | Multi-paragraph spec with 3-5 rules. Some business context to internalize. Sample I/O shows edge cases. |
-| **困難 Hard** | ~5 min | Long-form scenario (½ to 1 page). 6+ rules buried in prose. Disambiguation required (which rule applies first?). Multiple data sources or formats described. |
+| **簡單 Easy** | ~1 min | 1 paragraph or 2-3 bullet rules. No nested business context. Sample input/output fits on one screen. |
+| **中等 Medium** | ~3 min | 1-2 paragraphs of context + a few rules. Some business framing to internalize. Sample I/O shows edge cases. |
+| **困難 Hard** | ~5-7 min | **≥3 paragraphs of scenario.** Multiple stakeholders / rules / edge cases interleaved in prose. Reader must construct a mental table of "what data, what rule applies when" before coding. Disambiguation required (which rule applies first?). Multiple data sources or formats described. |
+
+**Calibration trap:** the coach's default instinct for "Hard reading" is anchored to LeetCode-style problems, which is too light for real senior DE assessments. When in doubt, count paragraphs. <3 paragraphs of scenario → not Hard.
 
 ### Axis 2: Operation Depth
+
+Anchor: a Hard problem must require **the full pipeline from scratch** — read input file(s) → transform → write output file(s). If the user's solution is just an in-memory transform function (input is `createDataFrame`, output is a returned list), it is not O:Hard.
 
 An "operation" is one discrete logical step:
 - **SQL**: one clause that does meaningful work — a JOIN, WHERE predicate, GROUP BY, HAVING, window definition, CTE step, COALESCE wrap. (Selecting raw columns doesn't count.)
@@ -353,9 +371,9 @@ An "operation" is one discrete logical step:
 
 | Level | Operations count | Characteristics |
 |---|---|---|
-| **簡單 Easy** | 1-5 ops | Single-step transform or basic aggregation. One JOIN max. No nested logic. |
-| **中等 Medium** | 5-10 ops | Multi-step linear pipeline. 1-2 JOINs, 1 window function, maybe one COALESCE. Edge case handling for nulls. |
-| **困難 Hard** | 10-15 ops | Complex business logic with conditional branches. Multiple JOINs or CTEs. Recursive CTE, multi-window, or multi-pass transforms. Edge cases for null/zero/empty/duplicate explicitly required. |
+| **簡單 Easy** | 1-5 ops | Single-step transform or basic aggregation. One JOIN max. No nested logic. Inline data OK. |
+| **中等 Medium** | 5-10 ops | Multi-step linear pipeline. 1-2 JOINs, 1 window function, maybe one COALESCE. Edge case handling for nulls. Read from file is expected; final write optional. |
+| **困難 Hard** | 10-15 ops | **Full I/O lifecycle: read file(s) → transform → write file(s).** Complex business logic with conditional branches. Multiple JOINs or CTEs. Recursive CTE, multi-window, or multi-pass transforms. Edge cases for null/zero/empty/duplicate explicitly required. |
 
 ### The 3×3 Matrix — Why Both Axes Matter
 
@@ -633,7 +651,10 @@ When analyzing weaknesses:
 
 When creating a mock exam:
 - Design 5 problems matching the assessment format and one of the **mock variants** (Standard / Target-Simulation / Speed-Run) — see [mock-exam-guide.md](mock-exam-guide.md)
-- Tag every problem with `[R:level, O:level]` so the user sees the calibration upfront
+- **Each question is fully independent**: own folder `challenges/mockN/qK/`, own `input/` + `output/` subfolders, own notebook. No cross-question data leakage.
+- **Python / PySpark questions must include the full I/O lifecycle** — solution reads from `input/` via `spark.read.X` (or `open()`/`pathlib`), processes, then writes to `output/` via `df.write.mode('overwrite').X(...)`. Tests verify by reading the output file back, not by inspecting an in-memory return value.
+- **SQL questions use LeetCode** — provide LeetCode problem number + URL + the structured prep wrapper (Problem focus / Pattern / Target time / Before coding / Common mistakes / Completion record / Takeaway). Do NOT write SQL into a Spark notebook — that tests Spark, not SQL.
+- Tag every problem with `[R:level, O:level]` so the user sees the calibration upfront. **Hard means Hard by the new anchors**: ≥3 paragraphs scenario for R:Hard, full read→write pipeline for O:Hard.
 - Use problems not previously attempted
 - **Set strict time limits — actually use a timer, not "approximately"**
 - For debug problems, include 3-5 intentional bugs from the Common Bug Patterns list

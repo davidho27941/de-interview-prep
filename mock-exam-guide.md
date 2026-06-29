@@ -4,6 +4,84 @@
 
 Each problem is tagged on TWO axes per the calibration in [SKILL.md](SKILL.md): **Reading** (R) and **Operations** (O). Mock exam composition is chosen by selecting a mix of (R, O) tags — not by a single "Easy/Medium/Hard" label.
 
+## Structural Rules (apply to EVERY mock)
+
+These rules are non-negotiable. A mock that violates them is mis-calibrated regardless of question content.
+
+### Rule 1: Each question is fully independent
+
+```
+challenges/
+└── mock{N}/
+    ├── q1/
+    │   ├── q1.ipynb            # this question's notebook
+    │   ├── input/              # this question's input files (+ decoys)
+    │   └── output/             # this question's solution writes here
+    ├── q2/
+    │   ├── q2.ipynb
+    │   ├── input/
+    │   └── output/
+    └── ...
+```
+
+- Own folder per question
+- Own notebook per question (NOT one shared notebook with multiple sections)
+- Own `input/` and `output/` subfolders
+- No cross-question data leakage; no shared module / shared `df` variable
+
+### Rule 2: Python / PySpark questions include full I/O lifecycle
+
+Senior DE work owns the full pipeline, not just the transform. Every Python / PySpark question:
+
+1. **Reads from disk** via `spark.read.csv/json/parquet/text(...)` (or Python `open()` / `pathlib`)
+2. Transforms
+3. **Writes to disk** via `df.write.mode('overwrite').parquet/csv/json(...)` (or Python `open('w')`)
+4. **Tests verify the output file** by reading it back — not by inspecting an in-memory return value
+
+A mock question whose solution looks like `def solve(df): return df.groupBy(...).agg(...)` is NOT O:Hard, regardless of how complex the transform is.
+
+### Rule 3: SQL questions use LeetCode + structured wrapper
+
+Do NOT use PySpark SQL or DataFrame API to fake a SQL question — that's testing Spark, not SQL.
+
+SQL question format:
+
+```markdown
+# Q1 — SQL [calibration tag] (target X min)
+
+## Problem
+- **Platform:** LeetCode
+- **Number / Title:** LeetCode 1280｜Students and Examinations
+- **URL:** https://leetcode.com/problems/students-and-examinations/
+- **Difficulty:** Medium
+- **Pattern:** CROSS JOIN + LEFT JOIN + GROUP BY (show-zeros)
+
+## Why this matters
+Tests the "show zero counts" pattern — the classic LEFT JOIN trap where students with no exams get filtered out by an INNER JOIN.
+
+## Before coding (think first, write second)
+1. Should students with zero exams appear in output? (Yes — that's the whole point)
+2. What's the canonical "all-pairs then filter" SQL pattern?
+3. Where does NULL appear and what does COUNT(col) vs COUNT(*) do?
+
+## Common mistakes
+- INNER JOIN instead of LEFT JOIN → students with zero exams drop
+- GROUP BY only by student → loses subject dimension
+- COUNT(*) instead of COUNT(exam_id) → zero-count rows show as 1
+
+## Completion record
+- Time spent: ___
+- Passed first try? Y / N
+- Mistake (if any): ___
+- Pattern learned: ___
+- Within target time? Y / N
+
+## Takeaway
+[Cheat-card lesson worth promoting to D14 review pile]
+```
+
+The user solves on LeetCode itself; local machine doesn't execute SQL. The wrapper trains: pattern recognition → clarifying questions → known traps → reflective scoring.
+
 ### Standard Mock (default — graduated difficulty matching typical DE assessment)
 
 | Q | Type | Reading | Operations | Target Time | Focus |
@@ -45,17 +123,19 @@ All problems below the Standard mix — focus on Pre-Submit Ritual execution, no
 
 If a problem you're designing has more than 15 operations, split it — that's beyond Hard and approaches take-home territory. If it has fewer than 1 (just "SELECT * FROM table"), it's not a problem, it's a syntax check.
 
-### Folder-Based Input Requirement (mandatory for Python / PySpark)
+### Folder-Based Input + Output Requirement (mandatory for Python / PySpark)
 
-Per the Input Convention in [SKILL.md](SKILL.md), every Python / PySpark / Debug problem in a mock MUST use folder-based input. SQL problems are exempt (they use the DB tables directly).
+Per Rule 2 above, every Python / PySpark / Debug problem must use folder-based input AND write to a folder-based output. SQL problems use LeetCode (see Rule 3).
 
 For each Python / PySpark / Debug problem, the problem designer MUST:
 
-1. Specify the input folder path (e.g., `challenges/mockN/qK/input/`)
-2. List the **target files** the user should process (with extension and naming convention)
-3. List the **decoy files** that must be filtered out
-4. Note if subdirectories are present (and whether they should be recursed into)
-5. Optionally include encoding traps or empty files
+1. Specify the input folder path (`challenges/mockN/qK/input/`)
+2. Specify the output folder path (`challenges/mockN/qK/output/`) and the expected file format (parquet / csv / json)
+3. List the **target input files** the user should process (with extension and naming convention)
+4. List the **decoy files** that must be filtered out
+5. Note if subdirectories are present (and whether they should be recursed into)
+6. Optionally include encoding traps or empty files
+7. Write tests that **read the output file back** and assert its contents — not asserts on a returned object
 
 ### Decoy mix per difficulty
 
@@ -65,10 +145,16 @@ For each Python / PySpark / Debug problem, the problem designer MUST:
 | **O:Medium** | 2-3 | Wrong extension + backup file (.bak) + hidden |
 | **O:Hard** | 3-5 | All of medium + subdirectory + empty file + encoding edge case |
 
-### Sample problem header (use this format)
+### Sample Python / PySpark problem header (use this format)
 
 ```
 # Q3 — Python scenario [R:M, O:M] (target 15 min)
+
+## Scenario
+[≥3 paragraphs of business context for R:Hard problems. Describe the company,
+the data sources, the stakeholders, the business rules, and the edge cases —
+embedded in prose, not bullet points. Force the reader to construct a mental
+table of "what data, what rule applies when" before they touch the keyboard.]
 
 ## Input
 Folder: `mock1/q3/input/`
@@ -78,22 +164,28 @@ Target files:
 
 Decoy files (must be filtered out):
   - .DS_Store (hidden)
-  - access-2026-05-31.log.bak (backup)
+  - access-YYYY-MM-DD.log.bak (backup)
   - README.md (documentation)
   - archive/ (subdirectory — do NOT recurse)
 
-## Task
-... (the actual problem)
+## Output
+Folder: `mock1/q3/output/`
+Format: parquet (single file or partitioned — your choice; document it)
+Schema: { user_id: string, session_count: long, last_seen: timestamp }
+Sort: by user_id ascending
 
 ## Pre-Submit Ritual
 1. Empty set behavior?
 2. Aggregates in arithmetic → COALESCE?
 3. INNER vs LEFT JOIN?
 4. Boundary cases?
-PLUS: did I filter the decoy files correctly? Sanity-print the file list before processing.
+PLUS: did I filter the decoy files correctly? Did I write to the output folder?
 ```
 
-This format reinforces the "read the spec carefully" reading-load axis AND the file-filtering reflex on every problem.
+This format reinforces:
+- The "read the spec carefully" reading-load axis (≥3 paragraphs for R:Hard)
+- The file-filtering reflex on every problem
+- **The I/O lifecycle ownership** (read AND write to disk)
 
 ## Time Management Strategy
 
@@ -115,24 +207,35 @@ Writing a brief annotation before coding improves accuracy:
 
 Keep it under 1 minute. The goal is to anchor your thinking, not write documentation.
 
-## Q1-Q2: SQL Problem Design
+## Q1-Q2: SQL Problem Design (LeetCode-based)
 
-### Q1 (Easy) — Pick from:
+Per Rule 3, SQL questions reference a real LeetCode problem and use the structured prep wrapper. Do not invent SQL problems against a local engine. The wrapper structure is in Rule 3 above; here's the source guidance.
+
+### Q1 (Easy) — Pick LeetCode problems testing:
 - Basic JOIN + GROUP BY + HAVING
 - Simple aggregation with NULL handling
 - CASE WHEN for conditional counting
+- WHERE + NULL-safe negative filtering (`<>` vs `IS NOT NULL`)
+- LIKE pattern matching
 - Self-join for comparison within same table
 
-### Q2 (Medium) — Pick from:
+Examples: LeetCode 584 (Find Customer Referee), 1527 (Patients With a Condition), 1757 (Recyclable and Low Fat Products), 570 (Managers with at Least 5 Direct Reports).
+
+### Q2 (Medium) — Pick LeetCode problems testing:
 - Window functions (RANK, ROW_NUMBER, running total)
 - CTE with multiple steps
 - Gap-and-Island pattern
 - Complex JOIN (CROSS JOIN + LEFT JOIN for "show zeros")
 - Subquery correlation
+- Multi-pattern composition (window + LEFT JOIN + COALESCE)
+
+Examples: LeetCode 1280 (Students and Examinations), 550 (Game Play Analysis IV), 185 (Department Top Three Salaries).
 
 ### SQL Sources
-- LeetCode Database section (filter by DE-relevant topics)
-- HackerRank SQL domain
+- **Primary:** LeetCode Database section (filter by DE-relevant topics)
+- Secondary: HackerRank SQL domain
+
+User solves on the platform; we host the prep wrapper (Problem focus / Pattern / Target time / Before coding / Common mistakes / Completion record / Takeaway).
 
 ## Q3-Q4: Python Problem Design
 
