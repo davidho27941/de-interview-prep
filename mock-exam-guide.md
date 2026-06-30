@@ -131,13 +131,15 @@ For each Python / PySpark / Debug problem, the problem designer MUST:
 
 1. Specify the input folder path (`challenges/mockN/qK/input/`)
 2. Specify the output folder path (`challenges/mockN/qK/output/`) and the expected file format (parquet / csv / json)
-3. List the **target input files** the user should process (with extension and naming convention)
-4. List the **decoy files** that must be filtered out
-5. Note if subdirectories are present (and whether they should be recursed into)
-6. Optionally include encoding traps or empty files
+3. List the **target input files** in the spec (extension + naming convention + schema + sample content)
+4. **Plant decoy files physically in the input folder** but do NOT list them in the spec — the user discovers them by `ls` and applies filtering reflex
+5. Note if subdirectories are present in the spec only if they're part of the canonical structure (e.g., `orders/` containing daily files); a decoy subdirectory like `archive/` stays unmentioned
+6. Optionally include encoding traps or empty files (also unmentioned in spec)
 7. Write tests that **read the output file back** and assert its contents — not asserts on a returned object
 
-### Decoy mix per difficulty
+### Decoy mix per difficulty (designer reference — NOT exposed in spec)
+
+These are physical files the designer puts in `input/`; the user must discover and filter them. They are NEVER listed in the problem markdown.
 
 | Calibration | Min decoys | Decoy types to include |
 |---|---|---|
@@ -145,47 +147,105 @@ For each Python / PySpark / Debug problem, the problem designer MUST:
 | **O:Medium** | 2-3 | Wrong extension + backup file (.bak) + hidden |
 | **O:Hard** | 3-5 | All of medium + subdirectory + empty file + encoding edge case |
 
-### Sample Python / PySpark problem header (use this format)
+### Notebook vs Notion content split
+
+The notebook problem markdown is the **assessment-realistic surface**. The paired Notion prep/retro page is where scaffolding lives. Per [SKILL.md](SKILL.md):
+
+| In notebook (assessment surface) | In Notion (prep/retro) |
+|---|---|
+| Scenario (paragraph + rule subsections + bullet examples) | Pre-Submit Ritual prompts |
+| Input section (schema + sample content per source) | Decoy listing (for retro: "did the user filter correctly?") |
+| Output section (schema + sort + sample rows) | Solving steps / approach hints |
+| Solution scaffold cell + tests cell | Common mistakes for this pattern |
+|   | Completion record (time, passed, mistake, takeaway) |
+|   | Calibration tags + scoring |
+
+### Canonical R:Hard Python / PySpark notebook template
 
 ```
-# Q3 — Python scenario [R:M, O:M] (target 15 min)
+# Q{N} — {Problem name} [R:H, O:{level}] (target {N} min)
 
 ## Scenario
-[≥3 paragraphs of business context for R:Hard problems. Describe the company,
-the data sources, the stakeholders, the business rules, and the edge cases —
-embedded in prose, not bullet points. Force the reader to construct a mental
-table of "what data, what rule applies when" before they touch the keyboard.]
+{1 paragraph: business context — who needs this, why, what's at stake.}
+
+### 資料來源
+{1 short paragraph intro, then 3-4 bullets — one per input source.
+ Each bullet calls out the format AND any quirk (NULL convention,
+ SCD2 property, file naming pattern, blacklist semantics, etc.).}
+
+### Rule 1 — {Name (e.g., Net amount)}
+{1 paragraph prose stating the rule.}
+
+範例：
+- {Example bullet — concrete IDs and values}
+- {Edge case bullet — NULL / zero / boundary}
+- {Contrast bullet — positive case}
+- {Optional pathological case}
+
+### Rule 2 — {Name}
+{Prose + bullet examples.}
+
+### Rule 3 — {Name}
+{Prose + bullet examples.}
 
 ## Input
-Folder: `mock1/q3/input/`
 
-Target files:
-  - access-YYYY-MM-DD.log (10 files, one per day)
+Folder: `challenges/mockN/qK/input/`
 
-Decoy files (must be filtered out):
-  - .DS_Store (hidden)
-  - access-YYYY-MM-DD.log.bak (backup)
-  - README.md (documentation)
-  - archive/ (subdirectory — do NOT recurse)
+### {source-1 folder or file}/
+{Brief format description.}
+Schema: `col1, col2, ...`
+
+`{filename}` 內容範例（logical view if parquet）：
+
+| col1 | col2 | ... |
+|---|---|---|
+| {sample row using IDs from scenario rule examples} |
+| {another sample row including an edge case} |
+| ... |
+
+### {source-2}
+{Brief format description.}
+
+\`\`\`
+header,row,format
+{sample row}
+...
+\`\`\`
+
+> {Optional 1-line note tying sample data back to scenario examples}
+
+### {source-3} ...
+### {source-4} ...
 
 ## Output
-Folder: `mock1/q3/output/`
-Format: parquet (single file or partitioned — your choice; document it)
-Schema: { user_id: string, session_count: long, last_seen: timestamp }
-Sort: by user_id ascending
 
-## Pre-Submit Ritual
-1. Empty set behavior?
-2. Aggregates in arithmetic → COALESCE?
-3. INNER vs LEFT JOIN?
-4. Boundary cases?
-PLUS: did I filter the decoy files correctly? Did I write to the output folder?
+Folder: `challenges/mockN/qK/output/`
+Format: {parquet/csv/json}, partitioned by ...
+
+Schema:
+
+| field | type |
+|---|---|
+| ... | ... |
+
+Sort: {key} ASC → {key} ASC → ...
+
+Sample（前 N 列，供 schema 與 sort key 比對）：
+
+| ... |
 ```
 
-This format reinforces:
-- The "read the spec carefully" reading-load axis (≥3 paragraphs for R:Hard)
-- The file-filtering reflex on every problem
-- **The I/O lifecycle ownership** (read AND write to disk)
+**Key structural rules** (also in [SKILL.md](SKILL.md) Calibration section):
+
+- Examples are **bullets, not prose-embedded** — easier to parse individually; reading load comes from quantity + cross-referencing.
+- **Each input source must include sample content**, not just schema. Parquet → logical-view table. CSV/JSONL/TXT → raw text in fenced block.
+- Sample IDs cross-reference scenario rule examples (e.g., if Rule 1 mentions `O8803 / refund_amount=NULL`, refunds.json sample must contain that row).
+- **No decoy listing, no Pre-Submit Ritual** in the notebook markdown — they go to Notion. Decoys still exist physically in `input/`.
+
+### Canonical example
+
+The reference R:Hard problem worked through during 2026-06 calibration was "Q4 — Monthly Cohort Retention (1-month)" `[R:H, O:M]` target 20 min, with sources: orders parquet (multi-file), customers CSV, refunds JSONL, blacklist TXT. See the memory `feedback_hard_calibration_anchors.md` for the full rendered example.
 
 ## Time Management Strategy
 

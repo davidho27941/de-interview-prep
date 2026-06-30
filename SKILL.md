@@ -350,15 +350,54 @@ DE problem difficulty has two dimensions that vary independently. Always tag pro
 
 ### Axis 1: Reading Load
 
-Anchor: a Hard problem's spec must contain **≥3 paragraphs of business scenario** prose — multiple stakeholders, business rules, and edge case clauses buried in narrative. If you can read the entire spec in one screen at a glance, it is not Hard.
+Anchor: a Hard problem produces substantial reading load through *content volume* — multiple stakeholders, business rules with concrete bullet examples, and sample input data the reader must trace through to construct a mental model.
 
 | Level | Target reading time | Characteristics |
 |---|---|---|
 | **簡單 Easy** | ~1 min | 1 paragraph or 2-3 bullet rules. No nested business context. Sample input/output fits on one screen. |
 | **中等 Medium** | ~3 min | 1-2 paragraphs of context + a few rules. Some business framing to internalize. Sample I/O shows edge cases. |
-| **困難 Hard** | ~5-7 min | **≥3 paragraphs of scenario.** Multiple stakeholders / rules / edge cases interleaved in prose. Reader must construct a mental table of "what data, what rule applies when" before coding. Disambiguation required (which rule applies first?). Multiple data sources or formats described. |
+| **困難 Hard** | ~5-7 min | Scenario paragraph + **≥3 named business rules**, each with its own prose + 3-4 bullet examples (including edge cases). Multiple input sources, each with both schema AND sample content. Reader must cross-reference rule examples with input sample data to build a mental table before coding. |
 
-**Calibration trap:** the coach's default instinct for "Hard reading" is anchored to LeetCode-style problems, which is too light for real senior DE assessments. When in doubt, count paragraphs. <3 paragraphs of scenario → not Hard.
+**Canonical R:Hard notebook template:**
+
+```
+## Scenario
+[1 paragraph: business context]
+
+### 資料來源
+[Intro + 3-4 source bullets, each calling out a quirk (NULL convention,
+ SCD2, multi-file pattern, blacklist semantics, etc.)]
+
+### Rule 1 — {name}
+[Prose statement of the rule.]
+範例:
+- {Concrete example with IDs and values}
+- {Edge case: NULL / boundary}
+- {Contrast: positive case}
+- {Optional pathological case}
+
+### Rule 2 — {name}
+[Prose + bullet examples.]
+
+### Rule 3 — {name}
+[Prose + bullet examples.]
+
+## Input
+[Folder path + per-source schema + per-source sample content block.
+ Parquet: logical-view table. CSV/JSONL/TXT: raw text in fenced block.
+ Sample IDs cross-reference scenario rule examples.]
+
+## Output
+[Folder path + format + schema + sort + sample output rows.]
+```
+
+**Key structural rules:**
+- Examples are **bullets, not prose-embedded** — easier to parse individually; reading load comes from quantity + cross-referencing.
+- Each input source MUST have sample content (not just schema). See [Input Convention](#input-convention-folder-based-with-decoys) and [mock-exam-guide.md](mock-exam-guide.md) Rule 3.
+- Sample IDs in inputs cross-reference scenario rule examples (e.g., if Rule 1 mentions `O8803 / refund_amount=NULL`, refunds.json sample must include that row).
+- **No decoy listing, no Pre-Submit Ritual** in the notebook markdown. Those go to the paired Notion prep/retro page. The notebook is the assessment-realistic surface; decoys still exist physically in `input/` for the user to discover.
+
+**Calibration trap:** the coach's default instinct for "Hard reading" is anchored to LeetCode-style problems, which is too light for real senior DE assessments. When in doubt, render the spec, count rule subsections + example bullets. <3 rule subsections each with bullet examples → not R:Hard.
 
 ### Axis 2: Operation Depth
 
@@ -653,8 +692,10 @@ When creating a mock exam:
 - Design 5 problems matching the assessment format and one of the **mock variants** (Standard / Target-Simulation / Speed-Run) — see [mock-exam-guide.md](mock-exam-guide.md)
 - **Each question is fully independent**: own folder `challenges/mockN/qK/`, own `input/` + `output/` subfolders, own notebook. No cross-question data leakage.
 - **Python / PySpark questions must include the full I/O lifecycle** — solution reads from `input/` via `spark.read.X` (or `open()`/`pathlib`), processes, then writes to `output/` via `df.write.mode('overwrite').X(...)`. Tests verify by reading the output file back, not by inspecting an in-memory return value.
+- **Input section must show sample content per source** — parquet as logical-view markdown table, CSV/JSONL/TXT as raw text in fenced block. Sample IDs cross-reference scenario rule examples.
+- **Notebook is assessment-realistic** — NO decoy listings, NO Pre-Submit Ritual checklist in the notebook markdown. Decoys still exist physically in `input/` for the user to discover; ritual + retro content goes to the paired Notion page.
 - **SQL questions use LeetCode** — provide LeetCode problem number + URL + the structured prep wrapper (Problem focus / Pattern / Target time / Before coding / Common mistakes / Completion record / Takeaway). Do NOT write SQL into a Spark notebook — that tests Spark, not SQL.
-- Tag every problem with `[R:level, O:level]` so the user sees the calibration upfront. **Hard means Hard by the new anchors**: ≥3 paragraphs scenario for R:Hard, full read→write pipeline for O:Hard.
+- Tag every problem with `[R:level, O:level]` so the user sees the calibration upfront. **Hard means Hard by the new anchors**: R:Hard = scenario + ≥3 named rule subsections each with bullet examples + per-source input samples; O:Hard = full read→process→write pipeline.
 - Use problems not previously attempted
 - **Set strict time limits — actually use a timer, not "approximately"**
 - For debug problems, include 3-5 intentional bugs from the Common Bug Patterns list
