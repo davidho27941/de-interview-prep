@@ -327,6 +327,23 @@ The 4 Pre-Submit questions applied to TEST DESIGN (not just solution):
 - Rule: decide the final problem before writing. If during writing you realize the original frame doesn't work, rewrite from scratch, don't leave both versions.
 - If the problem GENUINELY has multiple valid readings (ambiguity audit, Check 4), present them in a structured way (A/B/C readings) NOT as inline iteration.
 
+### ☑ Check 9: Numeric precision commitment (money / measurement)
+
+If the canonical solution does any equality / inequality comparison on aggregated numeric fields (money, quantities, ratios, timestamps-as-numbers), the spec MUST commit to precision handling. Silence = broken test.
+
+**The failure mode:**
+- Amount stored as `DoubleType`
+- Canonical does `F.sum(amount) == target` or similar
+- IEEE 754 accumulator drift (~1e-13) causes false negative → misclassification
+- Concrete: `$2508.06` summed once → `2508.0600000000004` → `==` returns false
+
+**Fix (one of):**
+- **A**: Use `DecimalType(precision, 2)` end-to-end in schema. Test expected computed with Decimal. `==` is safe.
+- **B**: Keep `DoubleType` but spec explicitly requires `round(x, 2)` or `abs(a - b) < 0.01` before comparison. Test expected computed with the same rounding.
+- **C** (recommended for money): Both — schema is Decimal AND the 細節澄清 includes a "float trap" teaching note.
+
+Never leave the spec silent when currency / aggregated numerics feed into comparisons.
+
 ### Checklist summary table (workflow shortcut)
 
 When designing problem N:
@@ -341,6 +358,7 @@ When designing problem N:
 | 6 | Edge cases (4Q ritual) | Empty / NULL aggregate / Join type / Boundary all tested? |
 | 7 | Decoy alignment | Naive glob would fail the test? |
 | 8 | Template alignment | 4-stage + Pre-Submit + Extension (warm-up) included? |
+| 9 | Numeric precision | Money / aggregated numerics feed into ==? Decimal or explicit round in spec? |
 
 A problem that fails any check is a **draft**, not a final. Either fix the check or document the intentional exclusion in the markdown.
 
@@ -402,6 +420,7 @@ Anchor: a Hard problem produces substantial reading load through *content volume
 - Sample IDs in inputs cross-reference scenario rule examples (e.g., if Rule 1 mentions `O8803 / refund_amount=NULL`, refunds.json sample must include that row).
 - **Explicit `## Task` section is MANDATORY.** Scenario + rules describe the *world*; Task describes what to *build*. Must include pipeline steps + derived-column formulas + row-membership rule + zero vs missing semantics.
 - **Every schema column MUST have an explicit type.** `col: string` / `col: timestamp` / `col: double`, never bare `col1, col2, col3`. Implicit types leak decisions to the reader (e.g., `payment_ts` — timestamp or date?).
+- **Money columns MUST use `decimal(p, 2)` OR the spec must state an explicit rounding rule.** `DoubleType` + `sum + ==` silently misclassifies via IEEE 754 accumulator drift (e.g., `$2508.06` summed once → `2508.0600000000004` → false negative on equality). Never leave precision handling silent when currency comparisons are involved.
 - **No decoy listing, no Pre-Submit Ritual** in the notebook markdown. Those go to the paired Notion prep/retro page. The notebook is the assessment-realistic surface; decoys still exist physically in `input/` for the user to discover.
 
 **Calibration trap:** the coach's default instinct for "Hard reading" is anchored to LeetCode-style problems, which is too light for real senior DE assessments. When in doubt, render the spec, count rule subsections + example bullets. <3 rule subsections each with bullet examples → not R:Hard.

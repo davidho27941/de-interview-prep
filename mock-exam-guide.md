@@ -263,6 +263,7 @@ Sample（前 N 列，供 schema 與 sort key 比對）：
 - Sample IDs cross-reference scenario rule examples (e.g., if Rule 1 mentions `O8803 / refund_amount=NULL`, refunds.json sample must contain that row).
 - **Explicit `## Task` section is MANDATORY.** Scenario + rules describe the *world*; Task describes what to *build*. Must include pipeline steps + derived-column formulas + row-membership rule + zero vs missing semantics. Source: D5 Q1 shipped without it and user said "spec 沒明確要求要做的事".
 - **Every schema column MUST have an explicit type.** `col: string` / `col: timestamp` / `col: double`, never bare `col1, col2, col3`. Implicit types leak decisions to the reader (e.g., `payment_ts` could be timestamp or date).
+- **Money columns MUST use `decimal(p, 2)` OR spec must state explicit rounding.** `DoubleType` + `sum + ==` on currency silently misclassifies via IEEE 754 accumulator drift. If your canonical solution does any equality/inequality comparison on aggregated money, commit to precision handling in the spec. Source: D5 Q1 shipped with `DoubleType` amounts and `matched: paid_total == invoice_amount` — invoice $2508.06 got misclassified as overpaid because the sum drifted to `2508.0600000000004`.
 - **No decoy listing, no Pre-Submit Ritual** in the notebook markdown — they go to Notion. Decoys still exist physically in `input/`.
 
 ### Canonical example
