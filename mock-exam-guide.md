@@ -188,13 +188,33 @@ The notebook problem markdown is the **assessment-realistic surface**. The paire
 ### Rule 3 — {Name}
 {Prose + bullet examples.}
 
+## Task
+
+Build 一個 pipeline：
+
+1. 讀 {input sources}
+2. 套用 Rule 1-3
+3. Aggregate 到 {grain} 層級：{output metrics}
+4. Join {lookup table} 補上 {enrichment columns}
+5. Sort + write {format} 到 output/
+
+**細節澄清:**
+
+- {How derived columns are computed — e.g., `settlement_month = trunc(date, 'month')`}
+- {Row membership rule — which (dim1, dim2) combos appear in output}
+- {Zero-count vs missing-row semantics — do zero-activity rows appear?}
+- {Any edge cases the rules DON'T cover}
+
 ## Input
 
 Folder: `challenges/mockN/qK/input/`
 
 ### {source-1 folder or file}/
 {Brief format description.}
-Schema: `col1, col2, ...`
+Schema (every column MUST have explicit type):
+- `col1: string`
+- `col2: date`
+- `col3: double`
 
 `{filename}` 內容範例（logical view if parquet）：
 
@@ -241,6 +261,8 @@ Sample（前 N 列，供 schema 與 sort key 比對）：
 - Examples are **bullets, not prose-embedded** — easier to parse individually; reading load comes from quantity + cross-referencing.
 - **Each input source must include sample content**, not just schema. Parquet → logical-view table. CSV/JSONL/TXT → raw text in fenced block.
 - Sample IDs cross-reference scenario rule examples (e.g., if Rule 1 mentions `O8803 / refund_amount=NULL`, refunds.json sample must contain that row).
+- **Explicit `## Task` section is MANDATORY.** Scenario + rules describe the *world*; Task describes what to *build*. Must include pipeline steps + derived-column formulas + row-membership rule + zero vs missing semantics. Source: D5 Q1 shipped without it and user said "spec 沒明確要求要做的事".
+- **Every schema column MUST have an explicit type.** `col: string` / `col: timestamp` / `col: double`, never bare `col1, col2, col3`. Implicit types leak decisions to the reader (e.g., `payment_ts` could be timestamp or date).
 - **No decoy listing, no Pre-Submit Ritual** in the notebook markdown — they go to Notion. Decoys still exist physically in `input/`.
 
 ### Canonical example

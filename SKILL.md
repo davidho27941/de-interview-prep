@@ -382,10 +382,15 @@ Anchor: a Hard problem produces substantial reading load through *content volume
 ### Rule 3 — {name}
 [Prose + bullet examples.]
 
+## Task
+[EXPLICIT 3-5 step pipeline description + 細節澄清 (derived-column formulas,
+ row-membership rule, zero vs missing semantics, edge cases the rules don't
+ cover). Never leave the ask implicit in scenario/rules.]
+
 ## Input
-[Folder path + per-source schema + per-source sample content block.
- Parquet: logical-view table. CSV/JSONL/TXT: raw text in fenced block.
- Sample IDs cross-reference scenario rule examples.]
+[Folder path + per-source schema (EVERY column with explicit type) + per-source
+ sample content block. Parquet: logical-view table. CSV/JSONL/TXT: raw text
+ in fenced block. Sample IDs cross-reference scenario rule examples.]
 
 ## Output
 [Folder path + format + schema + sort + sample output rows.]
@@ -395,6 +400,8 @@ Anchor: a Hard problem produces substantial reading load through *content volume
 - Examples are **bullets, not prose-embedded** — easier to parse individually; reading load comes from quantity + cross-referencing.
 - Each input source MUST have sample content (not just schema). See [Input Convention](#input-convention-folder-based-with-decoys) and [mock-exam-guide.md](mock-exam-guide.md) Rule 3.
 - Sample IDs in inputs cross-reference scenario rule examples (e.g., if Rule 1 mentions `O8803 / refund_amount=NULL`, refunds.json sample must include that row).
+- **Explicit `## Task` section is MANDATORY.** Scenario + rules describe the *world*; Task describes what to *build*. Must include pipeline steps + derived-column formulas + row-membership rule + zero vs missing semantics.
+- **Every schema column MUST have an explicit type.** `col: string` / `col: timestamp` / `col: double`, never bare `col1, col2, col3`. Implicit types leak decisions to the reader (e.g., `payment_ts` — timestamp or date?).
 - **No decoy listing, no Pre-Submit Ritual** in the notebook markdown. Those go to the paired Notion prep/retro page. The notebook is the assessment-realistic surface; decoys still exist physically in `input/` for the user to discover.
 
 **Calibration trap:** the coach's default instinct for "Hard reading" is anchored to LeetCode-style problems, which is too light for real senior DE assessments. When in doubt, render the spec, count rule subsections + example bullets. <3 rule subsections each with bullet examples → not R:Hard.
