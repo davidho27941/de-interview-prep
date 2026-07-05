@@ -207,13 +207,13 @@ Empirically, almost all design bugs would have been caught by running the canoni
 
 ### 🚨 Rule 0.5: Mutation-verify before publishing (automated "test must bite")
 
-Running the canonical solution proves the expected values are right; it does NOT prove the test catches wrong solutions. Before publishing, run a **mutation harness** (`_verify_problem.py` pattern, see `challenges/d06/`):
+Running the canonical solution proves the expected values are right; it does NOT prove the test catches wrong solutions. Before publishing, run a **mutation harness** (a `_verify_problem.py` script alongside the problem):
 
 1. Implement the canonical solution — its output defines `expected`.
 2. Implement **≥3 plausible wrong solutions** (mutations) — one per required step / trap: skip-the-filter, wrong comparison operator (`>=` vs `>`), wrong join type, missing sort, dedup-when-you-shouldn't, hardcoded config, wrong date anchor, misuse of read options.
 3. Assert every mutation's output **differs** from canonical (or raises). A mutation with identical output = the test data does not bite that failure mode → **redesign the data**, then re-run.
 
-Empirically this catches gaps that survive all manual checks: on first run against D6 it found (a) no duplicate timestamps existed, so dedup-style wrong answers passed; (b) no exactly-30-minute gap existed, so `>=` vs `>` was indistinguishable. Humans walked past both.
+Empirically this catches gaps that survive all manual checks: on its first run against a freshly designed problem set it found (a) no duplicate timestamps existed, so dedup-style wrong answers passed; (b) a "more than 30 minutes" rule had no exactly-30-minute gap in the data, so `>=` vs `>` was indistinguishable. Manual review had walked past both.
 
 Publish only when the harness prints all-caught.
 
@@ -428,7 +428,7 @@ This mimics LeetCode's split-pane UX. In JupyterLab or VSCode: split editor, `pr
  orphan keys) — LeetCode-style disclosure. Perf expectations if relevant.]
 ```
 
-**RETIRED as of 2026-07-05:** the separate `## Task` numbered-steps section and the trailing `**細節澄清**` list. Both violated platform conventions — Task steps leaked the solution recipe (e.g., "GroupBy X → count", "lag → cumsum"), and 細節澄清 meant the problem statement was incomplete without a patch section. Every requirement now lives in Description/Rules/Output where the reader parses it out themselves.
+**Retired anti-pattern:** a separate `## Task` numbered-steps section and a trailing `**細節澄清**` (clarifications) list. Both violate platform conventions — Task steps leak the solution recipe (e.g., "GroupBy X → count", "lag → cumsum"), and a clarifications dump means the problem statement was incomplete without a patch section. Every requirement lives in Description/Rules/Output where the reader parses it out themselves.
 
 **Canonical notebook cell-0 pointer:**
 

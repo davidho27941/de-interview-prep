@@ -77,7 +77,7 @@ Tests the "show zero counts" pattern — the classic LEFT JOIN trap where studen
 - Within target time? Y / N
 
 ## Takeaway
-[Cheat-card lesson worth promoting to D14 review pile]
+[Cheat-card lesson worth promoting to the final-review pile]
 ```
 
 The user solves on LeetCode itself; local machine doesn't execute SQL. The wrapper trains: pattern recognition → clarifying questions → known traps → reflective scoring.
@@ -252,7 +252,7 @@ Sample（前 N 列，供 schema 比對）：
 
 **Key structural rules** (also in [SKILL.md](SKILL.md) Calibration section):
 
-- **Requirements woven into Description/Rules — never appended.** Ordering, return format, partitioning, derived-column formulas all appear in the statement body. A separate 細節澄清 dump = the statement failed. (RETIRED 2026-07-05: the `## Task` numbered-steps + 細節澄清 sections — Task steps leaked the solution recipe.)
+- **Requirements woven into Description/Rules — never appended.** Ordering, return format, partitioning, derived-column formulas all appear in the statement body. A separate clarifications dump = the statement failed. (Retired anti-pattern: `## Task` numbered-steps + trailing 細節澄清 sections — Task steps leak the solution recipe.)
 - **The deliverable is a sentence, not a recipe.** Final Description paragraph states WHAT to produce and WHERE to write. Never name functions or algorithm steps (`to_date`, "GroupBy → count", "lag → cumsum").
 - **Ordering contract explicit and verifiable.** Exact order → single sorted file, test compares write order strictly. Otherwise 「順序不作要求」 → test re-sorts. Never demand a sort the test can't physically verify (global order inside a partitioned dataset is not a real contract).
 - **No off-topic terminology** — don't mention concepts from sibling problems (e.g., "session" inside a plain counting problem).
@@ -260,7 +260,7 @@ Sample（前 N 列，供 schema 比對）：
 - **Each input source must include sample content**, not just schema. Parquet → logical-view table. CSV/JSONL/TXT → raw text in fenced block.
 - Sample IDs cross-reference scenario rule examples (e.g., if Rule 1 mentions `O8803 / refund_amount=NULL`, refunds.json sample must contain that row).
 - **Every schema column MUST have an explicit type.** `col: string` / `col: timestamp` / `col: double`, never bare `col1, col2, col3`. Implicit types leak decisions to the reader (e.g., `payment_ts` could be timestamp or date).
-- **Money columns MUST use `decimal(p, 2)` OR spec must state explicit rounding.** `DoubleType` + `sum + ==` on currency silently misclassifies via IEEE 754 accumulator drift. If your canonical solution does any equality/inequality comparison on aggregated money, commit to precision handling in the spec. Source: D5 Q1 shipped with `DoubleType` amounts and `matched: paid_total == invoice_amount` — invoice $2508.06 got misclassified as overpaid because the sum drifted to `2508.0600000000004`.
+- **Money columns MUST use `decimal(p, 2)` OR spec must state explicit rounding.** `DoubleType` + `sum + ==` on currency silently misclassifies via IEEE 754 accumulator drift. If your canonical solution does any equality/inequality comparison on aggregated money, commit to precision handling in the spec. Real failure mode: a reconciliation problem shipped with `DoubleType` amounts and `matched: paid_total == invoice_amount` — an invoice of $2508.06 got misclassified as overpaid because the payment sum drifted to `2508.0600000000004`.
 - **No decoy listing, no Pre-Submit Ritual** in the notebook markdown — they go to Notion. Decoys still exist physically in `input/`.
 
 ### Canonical notebook cell-0 pointer (LeetCode-style split)
@@ -283,7 +283,12 @@ Cells 1-3: setup + solution scaffold + tests (DO NOT MODIFY). All spec content s
 
 ### Canonical example
 
-The reference R:Hard problem worked through during 2026-06 calibration was "Q4 — Monthly Cohort Retention (1-month)" `[R:H, O:M]` target 20 min, with sources: orders parquet (multi-file), customers CSV, refunds JSONL, blacklist TXT. See the memory `feedback_hard_calibration_anchors.md` for the full rendered example. D5 Q1 (Merchant Payout Discrepancy) demonstrates the two-file split — see `challenges/d05/q1/{problem.md, q1.ipynb}`.
+Two reference shapes that exercise the full template:
+
+- **"Monthly Cohort Retention (1-month)"** `[R:H, O:M]`, target 20 min — sources: orders parquet (multi-file daily dumps), customers CSV, refunds JSONL (with a NULL-means-full-refund convention), blacklist TXT. Rules: net amount after refunds, acquisition month from first net-positive order, next-month retention flag.
+- **"Merchant Payout Reconciliation"** `[R:H, O:M]`, target 25 min — sources: invoices parquet, payments JSONL (many payments per invoice), merchant CSV, disputed-ids TXT. Rules: exclusion list with partial/full payment activity, `paid_total` aggregation with `decimal(12,2)`, matched/underpaid/overpaid/unpaid classification.
+
+Both demonstrate the two-file split (`problem.md` + pointer notebook), typed schemas, sample content per source, and exclusion-list entries that HAVE activity so a skipped filter changes the counts.
 
 ## Time Management Strategy
 
