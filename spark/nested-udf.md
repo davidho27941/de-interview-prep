@@ -2,91 +2,91 @@
 
 ## Nested Types (ArrayType / StructType / MapType)
 
-### Schema 結構
+### Schema structure
 
 ```python
 from pyspark.sql.types import ArrayType, StructType, StructField, MapType
 
-# ArrayType: 一個 column 內是 list
-ArrayType(StringType())                    # 一個 column 是 list of strings
+# ArrayType: a column containing a list
+ArrayType(StringType())                    # a column that is a list of strings
 ArrayType(IntegerType())                   # list of ints
 
-# StructType: 一個 column 內是 nested object（如 JSON）
+# StructType: a column containing a nested object (like JSON)
 StructType([
     StructField('user_id', StringType()),
-    StructField('addr', StructType([        # 嵌套 struct
+    StructField('addr', StructType([        # nested struct
         StructField('city', StringType()),
         StructField('zip', StringType()),
     ])),
-    StructField('tags', ArrayType(StringType())),    # struct 內的 array
+    StructField('tags', ArrayType(StringType())),    # array inside a struct
 ])
 
-# MapType: 一個 column 內是 dict
+# MapType: a column containing a dict
 MapType(StringType(), IntegerType())       # {str: int}
 ```
 
-### 存取 nested struct field
+### Accessing nested struct fields
 
 ```python
-df.select('user_id', F.col('addr.city'), F.col('addr.zip'))   # 點存取
-df.select('user_id', 'addr.*')                                # 展開 struct 所有 field
+df.select('user_id', F.col('addr.city'), F.col('addr.zip'))   # dot access
+df.select('user_id', 'addr.*')                                # expand all struct fields
 ```
 
-### explode：把 array 攤平成多 row
+### explode: flatten an array into multiple rows
 
 ```python
-# 假設一個 user 有 tags = ['python', 'spark', 'sql']
-# explode 後變 3 row：(user_id, 'python'), (user_id, 'spark'), (user_id, 'sql')
+# Suppose a user has tags = ['python', 'spark', 'sql']
+# After explode: 3 rows — (user_id, 'python'), (user_id, 'spark'), (user_id, 'sql')
 
 df.withColumn('tag', F.explode('tags'))
   .select('user_id', 'tag')
 
-# posexplode：同時拿到 array index
+# posexplode: also get the array index
 df.withColumn('idx_tag', F.posexplode('tags'))
-# 結果有 'pos' 跟 'col' 兩個 column
+# result has two columns: 'pos' and 'col'
 
-# explode_outer：array 為 NULL 或空時，仍保留 row（攤成 1 row with NULL）
-df.withColumn('tag', F.explode_outer('tags'))   # 如果 explode 會丟空 array row
+# explode_outer: keeps the row when the array is NULL or empty (flattens to 1 row with NULL)
+df.withColumn('tag', F.explode_outer('tags'))   # plain explode would drop empty-array rows
 ```
 
-### 反向：collect_list / collect_set
+### The reverse: collect_list / collect_set
 
 ```python
-# 把多 row 合成 array
+# Combine multiple rows into an array
 df.groupBy('user_id').agg(F.collect_list('tag').alias('tags'))
-df.groupBy('user_id').agg(F.collect_set('tag').alias('unique_tags'))   # set 去重
+df.groupBy('user_id').agg(F.collect_set('tag').alias('unique_tags'))   # set deduplicates
 ```
 
-⚠ `collect_list` 元素順序不保證 — 需要順序時見 [window-sessionization.md](window-sessionization.md) 的 sort_array + struct 技巧。
+⚠ `collect_list` element order is not guaranteed — when order matters, see the sort_array + struct trick in [window-sessionization.md](window-sessionization.md).
 
-### Higher-order functions on arrays（Spark 3.0+）
+### Higher-order functions on arrays (Spark 3.0+)
 
-對 array column 做 map / filter / aggregate，**不用 explode**：
+Apply map / filter / aggregate to an array column **without explode**:
 
 ```python
-# transform: 對 array 每個元素套用 function
+# transform: apply a function to every element of the array
 df.withColumn('upper_tags', F.transform('tags', lambda x: F.upper(x)))
 
-# filter: 過濾 array 元素
+# filter: filter array elements
 df.withColumn('long_tags', F.filter('tags', lambda x: F.length(x) > 5))
 
-# aggregate: array 元素累計
+# aggregate: accumulate over array elements
 df.withColumn('total_amount',
     F.aggregate('amounts', F.lit(0.0), lambda acc, x: acc + x))
 
-# exists: 是否有任何元素符合
+# exists: does any element match
 df.withColumn('has_python', F.exists('tags', lambda x: x == 'python'))
 
 # array_distinct / array_intersect / array_union / array_except
 df.withColumn('unique', F.array_distinct('tags'))
 ```
 
-**反射：能用 higher-order function 不要 explode**（explode 會增 row 數，下游處理更貴）。
+**Reflex: if a higher-order function can do it, don't explode** (explode multiplies row count, making downstream processing more expensive).
 
-### 從 JSON string parse
+### Parsing from a JSON string
 
 ```python
-# 收到 string column，內容是 JSON
+# You receive a string column whose content is JSON
 df = spark.createDataFrame([('{"city":"Tokyo","zip":"100"}',)], ['addr_json'])
 
 addr_schema = StructType([
@@ -97,26 +97,26 @@ addr_schema = StructType([
 df.withColumn('addr', F.from_json('addr_json', addr_schema))
   .select('addr.city', 'addr.zip')
 
-# 反向：to_json
+# The reverse: to_json
 df.withColumn('addr_str', F.to_json(F.col('addr')))
 ```
 
 ### Map operations
 
 ```python
-df.withColumn('city', F.col('attrs.city'))      # 不行，map 不能點存取
-df.withColumn('city', F.col('attrs')['city'])   # 用 bracket
+df.withColumn('city', F.col('attrs.city'))      # doesn't work — maps don't support dot access
+df.withColumn('city', F.col('attrs')['city'])   # use brackets
 df.withColumn('keys', F.map_keys('attrs'))
 df.withColumn('values', F.map_values('attrs'))
 df.withColumn('entries', F.map_entries('attrs'))   # array of structs
 ```
 
-### 常見場景
+### Common scenarios
 
 **1. Nested JSON parsing**
 
 ```python
-# events.jsonl 每行：
+# Each line of events.jsonl:
 # {"user": "u1", "actions": [{"ts": "2026-01-01", "type": "click"}, ...]}
 
 schema = StructType([
@@ -130,17 +130,17 @@ schema = StructType([
 df = (spark.read.schema(schema).json('events.jsonl')
       .select('user', F.explode('actions').alias('action'))
       .select('user', 'action.ts', 'action.type'))
-# 展平成 (user, ts, type) flat structure
+# flattened into a (user, ts, type) flat structure
 ```
 
-**2. Pivot-style 不用 pivot**
+**2. Pivot-style without pivot**
 
 ```python
-# 想算 per-user 各種 event_type count
-# 傳統做法：pivot
+# Want per-user counts for each event_type
+# Traditional approach: pivot
 df.groupBy('user').pivot('event_type').count()
 
-# Alternative：array + map
+# Alternative: array + map
 df.groupBy('user').agg(
     F.map_from_entries(
         F.collect_list(F.struct('event_type', 'count'))
@@ -148,53 +148,53 @@ df.groupBy('user').agg(
 )
 ```
 
-### 面試常見題型
+### Common interview question shapes
 
-- 「給 events.jsonl，提取每個 user 的最近一次 purchase 金額」→ from_json / explode / window
-- 「展平 nested struct 到 flat columns」→ `select('parent.*')` 或多次 `col('a.b.c')`
-- 「把多 row 收進 array 再去重」→ groupBy + `collect_set`
-- 「array 內找符合條件的元素」→ `F.exists` / `F.filter`
+- "Given events.jsonl, extract each user's most recent purchase amount" → from_json / explode / window
+- "Flatten a nested struct into flat columns" → `select('parent.*')` or multiple `col('a.b.c')`
+- "Collect multiple rows into an array, then deduplicate" → groupBy + `collect_set`
+- "Find array elements matching a condition" → `F.exists` / `F.filter`
 
 ---
 
 ## UDF (User-Defined Function)
 
-### 第一原則：能用 built-in 就**別用** UDF
+### First principle: if a built-in can do it, **don't** use a UDF
 
-UDF 在 Spark 內部會：
-1. 把 Spark Column 序列化（JVM → Python）
-2. 在 Python interpreter 跑 row-by-row
-3. 結果序列化回去（Python → JVM）
+Internally, a UDF makes Spark:
+1. Serialize the Spark Column (JVM → Python)
+2. Run row-by-row in the Python interpreter
+3. Serialize results back (Python → JVM)
 
-**單筆 serialization cost 比 built-in 多 10-100x。**
+**Per-row serialization cost is 10-100x more than a built-in.**
 
 ```python
-# ❌ 別這樣寫
+# ❌ Don't write this
 @F.udf(returnType=DoubleType())
 def double_it(x):
     return x * 2 if x else 0
 
 df.withColumn('doubled', double_it('amount'))
 
-# ✅ Built-in 跟它一樣
+# ✅ The built-in equivalent
 df.withColumn('doubled', F.coalesce(F.col('amount') * 2, F.lit(0)))
 ```
 
-**反射：寫 UDF 前先查「pyspark functions <你要的操作>」**。九成情況有 built-in。
+**Reflex: before writing a UDF, search "pyspark functions <the operation you need>".** Nine times out of ten there's a built-in.
 
-### 真的需要 UDF 的場景
+### Scenarios where a UDF is genuinely needed
 
-1. **複雜業務邏輯** built-in 表達不出來（multi-step parsing、特殊 hash 等）
-2. **呼叫第三方 Python 函式庫**（regex 進階、ML 推論、charset detection 等）
-3. **不可序列化的 stateful 操作**（rare）
+1. **Complex business logic** that built-ins can't express (multi-step parsing, special hashing, etc.)
+2. **Calling third-party Python libraries** (advanced regex, ML inference, charset detection, etc.)
+3. **Non-serializable stateful operations** (rare)
 
-### UDF 基本寫法
+### Basic UDF patterns
 
 ```python
 from pyspark.sql.functions import udf
 from pyspark.sql.types import StringType
 
-# 三種寫法
+# Three ways to write one
 
 # 1. Decorator
 @udf(returnType=StringType())
@@ -205,21 +205,21 @@ def classify_amount(x):
 
 df.withColumn('tier', classify_amount('amount'))
 
-# 2. 直接包
+# 2. Wrap directly
 classify_udf = udf(lambda x: 'high' if x and x > 1000 else 'low', StringType())
 df.withColumn('tier', classify_udf('amount'))
 
-# 3. 不指定 returnType 預設 StringType
+# 3. Omitting returnType defaults to StringType
 @udf
 def to_upper(s):
     return s.upper() if s else None
 ```
 
-**重要：** UDF 對 NULL 不 magic — 你要自己 `if x is None`。built-in 通常 NULL-safe（NULL 進 NULL 出），UDF 沒這保證。
+**Important:** UDFs do nothing magic with NULL — you must handle `if x is None` yourself. Built-ins are usually NULL-safe (NULL in, NULL out); UDFs give no such guarantee.
 
 ### Vectorized UDF (`@F.pandas_udf`)
 
-效能比 row-by-row UDF 好 **10-100x**。原因：每次處理一個 pandas Series（一批 row），不是單 row。
+**10-100x** better performance than a row-by-row UDF. Reason: each call processes a pandas Series (a batch of rows), not a single row.
 
 ```python
 import pandas as pd
@@ -232,22 +232,22 @@ def normalize(amount: pd.Series) -> pd.Series:
 df.withColumn('z_score', normalize('amount'))
 ```
 
-**何時用：** 需要 numpy / pandas 才能寫的數學運算（ML feature engineering 常用）。
+**When to use:** math that requires numpy / pandas to express (common in ML feature engineering).
 
-### UDF 性能對照（記住）
+### UDF performance comparison (memorize)
 
 ```
-built-in F.col(...) operations    → 最快（JVM 內運算）
+built-in F.col(...) operations    → fastest (computed inside the JVM)
 pandas_udf (vectorized)           → ~5-10x built-in
 udf (row-by-row)                  → ~50-100x built-in
 ```
 
-### 面試會問
+### Interviewers ask
 
-> 「為什麼 PySpark UDF 慢？」
+> "Why are PySpark UDFs slow?"
 
-**正解：** Python ↔ JVM 序列化成本（Py4J / Arrow）。每 row 都跨界一次。
+**Correct answer:** Python ↔ JVM serialization cost (Py4J / Arrow). Every row crosses the boundary once.
 
-> 「Pandas UDF 為什麼比一般 UDF 快？」
+> "Why is a Pandas UDF faster than a regular UDF?"
 
-**正解：** Arrow batch 跨界（一批 row 一次序列化）+ pandas 內部用 C 跑（不像 Python loop）。
+**Correct answer:** Arrow batches cross the boundary (one serialization per batch of rows) + pandas runs in C internally (unlike a Python loop).

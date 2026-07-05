@@ -25,13 +25,13 @@ df_large.join(F.broadcast(df_small), on="user_id", how="left")
 
 When to broadcast: small side is < ~10MB. Senior signal: knowing when shuffle cost dominates and broadcast avoids it.
 
-### 讀 explain 的 broadcast 方向: BuildLeft / BuildRight
+### Reading broadcast direction in explain: BuildLeft / BuildRight
 
 ```
 BroadcastHashJoin [...], Inner, BuildRight
 ```
 
-`BuildRight` = right side 被 broadcast；`BuildLeft` = left side 被 broadcast。Broadcast **大邊**會 OOM driver（小表才能塞進 executor memory）。Spark 也會自動 broadcast < 10MB 的表（`spark.sql.autoBroadcastJoinThreshold` 可調，設 `-1` 關閉）。
+`BuildRight` = the right side is broadcast; `BuildLeft` = the left side is broadcast. Broadcasting the **large side** OOMs the driver (only a small table fits in executor memory). Spark also auto-broadcasts tables < 10MB (tunable via `spark.sql.autoBroadcastJoinThreshold`; set `-1` to disable).
 
 ## The aggregate → LEFT join → classify shape (reconciliation problems)
 
@@ -77,18 +77,18 @@ joined = (facts.alias("f")
 ```
 
 **Traps:**
-- **Interval semantics `[valid_from, valid_to)`** — 右開。事件恰好在 `valid_to` 的瞬間屬於**下一個**版本。用 `>= from` + `< to`,不是兩個 `<=`。
-- **`valid_to IS NULL` = current row** — 忘了 OR 條件,所有落在 current 版本的事件都 join 不到。
-- **Non-equi join 沒有 hash join 可用** → 通常退化成 broadcast nested loop join。維度表小(SCD 表通常小)→ `F.broadcast(dim)` 是標配;維度表大就要先按 key bucketing 或改寫成「事件與版本 union 後開窗」的技巧。
-- **每筆 fact 應恰好對到 ≤1 個版本** — join 後 `groupBy fact_id having count > 1` 驗一次,抓出重疊 interval 的髒維度資料。
-- Orphan facts(維度裡沒這個 key)是 drop 還是保留 → 看 spec,别默默用 inner。
+- **Interval semantics `[valid_from, valid_to)`** — right-open. An event exactly at the `valid_to` instant belongs to the **next** version. Use `>= from` + `< to`, not two `<=`.
+- **`valid_to IS NULL` = current row** — forget the OR condition and every event falling in the current version fails to join.
+- **Non-equi joins have no hash join available** → usually degrades to a broadcast nested loop join. Small dimension table (SCD tables usually are) → `F.broadcast(dim)` is the standard move; a large dimension table needs bucketing by key first, or a rewrite using the "union events with versions, then window" technique.
+- **Each fact should match exactly ≤ 1 version** — after the join, verify once with `groupBy fact_id having count > 1` to catch dirty dimension data with overlapping intervals.
+- Whether orphan facts (key missing from the dimension) are dropped or kept → check the spec; don't silently use inner.
 
-## unionByName vs union（schema 對齊）
+## unionByName vs union (schema alignment)
 
 ```python
-df_a.union(df_b)          # ❌ 按「位置」拼 — 欄位順序不同時資料錯位, 不報錯!
-df_a.unionByName(df_b)    # ✅ 按「欄名」拼
-df_a.unionByName(df_b, allowMissingColumns=True)   # 欄位集合不同也行, 缺的補 NULL
+df_a.union(df_b)          # ❌ Concatenates by POSITION — data misaligns when column order differs, with no error!
+df_a.unionByName(df_b)    # ✅ Concatenates by column NAME
+df_a.unionByName(df_b, allowMissingColumns=True)   # Works even with different column sets; missing ones filled with NULL
 ```
 
-**Trap:** `union` 只檢查欄位「數量」,不檢查名字。兩個 DataFrame 欄位順序不同(select 順序、schema 演進)→ 資料靜靜錯位,型別剛好相容時連錯都不報。**反射: 多來源合併一律 `unionByName`**;schema 會演進的(月度檔多了新欄位)再加 `allowMissingColumns=True`。
+**Trap:** `union` only checks the column *count*, not the names. Two DataFrames with different column order (select order, schema evolution) → data silently misaligns, and when the types happen to be compatible you don't even get an error. **Reflex: always use `unionByName` when merging multiple sources**; add `allowMissingColumns=True` when the schema evolves (monthly files gaining new columns).

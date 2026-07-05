@@ -1,22 +1,22 @@
 # Batch vs Streaming — Concepts for the Verbal Rounds
 
-這一檔是**口頭深潛 / system design 輪的彈藥**,不是 coding 練習 — timed coding screen 幾乎不考 streaming code(跑不了 Kafka、job 不終止、assert 驗不了 unbounded 資料)。但 senior DE 面試的口頭輪,batch/streaming tradeoff 是必考題;而且這些概念解釋了 batch 題裡資料怪象的**根因**,講得出根因是 senior signal。
+This file is **ammunition for verbal deep-dives / system design rounds**, not coding practice — timed coding screens almost never test streaming code (no Kafka to run, jobs don't terminate, asserts can't validate unbounded data). But in senior DE verbal rounds, the batch/streaming tradeoff is a guaranteed question; and these concepts explain the **root causes** of data oddities in batch problems — being able to articulate the root cause is a senior signal.
 
-## 光譜:Batch → Micro-batch → Streaming
+## Spectrum: Batch → Micro-batch → Streaming
 
-| | Latency | 成本/複雜度 | 典型工具 |
+| | Latency | Cost/Complexity | Typical tools |
 |---|---|---|---|
-| **Batch** | 小時~天 | 最低 | Spark batch, dbt, Airflow 排程 |
-| **Micro-batch** | 分鐘 | 中 | Spark Structured Streaming(預設 mode)、每 N 分鐘的排程 batch |
-| **Streaming (record-at-a-time)** | 亞秒~秒 | 最高 | Flink, Kafka Streams |
+| **Batch** | hours~days | lowest | Spark batch, dbt, Airflow schedules |
+| **Micro-batch** | minutes | medium | Spark Structured Streaming (default mode), scheduled batch every N minutes |
+| **Streaming (record-at-a-time)** | sub-second~seconds | highest | Flink, Kafka Streams |
 
-**Senior 開場白:** 選型由「這個數字晚多久到會造成業務損失」決定,不是由技術時髦度決定。大多數「我們要 streaming」的需求,追問下去是 hourly / 15-min micro-batch 就滿足 — streaming 是 latency-cost tradeoff,每往左移一格,運維複雜度(state 管理、重放、監控)跳一級。
+**Senior opening line:** the choice is driven by "how late can this number arrive before the business loses money", not by technical fashion. Most "we need streaming" requests, when probed, are satisfied by hourly / 15-min micro-batch — streaming is a latency-cost tradeoff, and every step leftward on the spectrum jumps operational complexity (state management, replay, monitoring) up a level.
 
-> 面試被問「這條 pipeline 該 batch 還是 streaming?」— 先反問 freshness SLA 與下游用途(dashboard? 風控攔截?),再對映到光譜位置,最後補一句成本差異。直接跳答案是 junior 行為。
+> When asked in an interview "should this pipeline be batch or streaming?" — first ask back about the freshness SLA and downstream use (dashboard? real-time fraud blocking?), then map to a position on the spectrum, and finish with a note on the cost difference. Jumping straight to an answer is junior behavior.
 
-## Structured Streaming 心智模型
+## Structured Streaming Mental Model
 
-**「在一張 unbounded table 上跑 incremental query」** — API 跟 batch DataFrame 幾乎一樣:
+**"An incremental query running on an unbounded table"** — the API is nearly identical to a batch DataFrame:
 
 ```python
 # batch
@@ -24,7 +24,7 @@ df = spark.read.json("input/")
 out = df.groupBy("user_id").count()
 out.write.parquet("out/")
 
-# streaming — 同一段邏輯, read→readStream, write→writeStream
+# streaming — same logic, read→readStream, write→writeStream
 df = spark.readStream.schema(schema).json("input/")
 out = df.groupBy("user_id").count()
 q = (out.writeStream.outputMode("update")
@@ -33,71 +33,71 @@ q = (out.writeStream.outputMode("update")
         .start())
 ```
 
-引擎把「新到的資料」當作 table 的增量,每個 trigger 跑一次 incremental 計算。**這是學習成本低的原因:transform 層完全共用**,差異全在 source/sink/trigger/state 四件事。
+The engine treats "newly arrived data" as increments to the table, running an incremental computation on each trigger. **This is why the learning cost is low: the transform layer is fully shared** — all differences live in four things: source/sink/trigger/state.
 
-> 面試被問「Spark Streaming 跟 batch 差在哪?」— 答 unbounded table 模型 + 四個差異點(source/sink/trigger/state),不要背 DStream 老 API(那是 Spark 1.x 時代)。
+> When asked in an interview "how does Spark Streaming differ from batch?" — answer with the unbounded table model + the four points of difference (source/sink/trigger/state); don't recite the old DStream API (that's Spark 1.x era).
 
-## Delivery Semantics — 為什麼資料天生有重複
+## Delivery Semantics — Why Data Is Naturally Duplicated
 
-- **At-most-once**: 可能掉資料,不重複(fire-and-forget)
-- **At-least-once**: 不掉資料,**可能重複**(retry 直到 ack — 絕大多數 event pipeline 的實況)
-- **Exactly-once**: 端到端不掉不重 — 需要 source 可重放 + sink 冪等/transactional 一起配合,單靠中間引擎做不到
+- **At-most-once**: may lose data, never duplicates (fire-and-forget)
+- **At-least-once**: never loses data, **may duplicate** (retry until ack — the reality of the vast majority of event pipelines)
+- **Exactly-once**: end-to-end no loss, no duplicates — requires a replayable source + an idempotent/transactional sink working together; the engine in the middle can't do it alone
 
-**這解釋了 batch 題裡的資料怪象:** event 資料中「同 user 同 timestamp 同 type」的重複列,多半是 at-least-once retry 的痕跡 — 這就是為什麼:
+**This explains data oddities in batch problems:** duplicate rows with "same user, same timestamp, same type" in event data are usually traces of at-least-once retries — and this is why:
 
-1. **Dedup 需要 business-event id**(`event_id` / `idempotency_key`)才是定論;拿 `(user, ts, type)` 啟發式去重可能誤殺真實的並發事件
-2. **Sink 要冪等** — 同一批資料重放兩次,結果要一樣(overwrite by partition、merge by key,而不是盲目 append)
+1. **Dedup requires a business-event id** (`event_id` / `idempotency_key`) to be definitive; heuristic dedup on `(user, ts, type)` can kill genuine concurrent events
+2. **Sinks must be idempotent** — replaying the same batch twice must yield the same result (overwrite by partition, merge by key — not blind append)
 
-> 面試被問「怎麼保證 exactly-once?」— 標準答:可重放的 source(Kafka offset / 檔案)+ checkpoint 記進度 + 冪等或 transactional 的 sink,三件缺一不可。再補一句「實務上常見做法是 at-least-once + 冪等 sink,效果等同」。
+> When asked in an interview "how do you guarantee exactly-once?" — the standard answer: a replayable source (Kafka offsets / files) + checkpoint recording progress + an idempotent or transactional sink; all three are required. Add: "in practice, the common approach is at-least-once + an idempotent sink, which is equivalent in effect."
 
-## Late Data 與 Watermark
+## Late Data and Watermarks
 
-事件的 **event time**(發生時間)跟 **processing time**(到達時間)永遠有差 — 手機離線補傳、上游 buffer flush、跨區網路。批次世界的症狀:每日檔案含有前一天的事件(「檔名不等於資料內容」);流式世界的問題:aggregation 要等多久才能「關窗」?
+An event's **event time** (when it happened) and **processing time** (when it arrived) always differ — offline phones re-uploading, upstream buffer flushes, cross-region networks. The batch-world symptom: daily files contain events from the previous day ("the filename does not equal the data content"); the streaming-world problem: how long should an aggregation wait before "closing the window"?
 
-**Watermark = 「我最多等多晚的資料」的宣告:**
+**Watermark = a declaration of "how late I'm willing to wait for data":**
 
 ```python
-(df.withWatermark("event_ts", "1 hour")           # 晚超過 1 小時的事件直接丟
+(df.withWatermark("event_ts", "1 hour")           # events more than 1 hour late are dropped
    .groupBy(F.window("event_ts", "10 minutes"))   # tumbling window
    .count())
 ```
 
-Window 種類對映你已會的 batch 概念:
+Window types map to batch concepts you already know:
 
-- **Tumbling**(固定不重疊)= batch 的 `date_trunc` 分桶
-- **Sliding**(固定會重疊)= batch 的 moving window
-- **Session window**(gap 超過 N 就關窗)= 你的 sessionization 模板的即時版 — `F.session_window("event_ts", "30 minutes")` 一行等於整套 lag→gap→cumsum
+- **Tumbling** (fixed, non-overlapping) = batch's `date_trunc` bucketing
+- **Sliding** (fixed, overlapping) = batch's moving window
+- **Session window** (close when the gap exceeds N) = the real-time version of your sessionization template — one line of `F.session_window("event_ts", "30 minutes")` equals the whole lag→gap→cumsum routine
 
-> 面試被問「late data 怎麼處理?」— batch 答案:reprocess 窗口(每天重算最近 N 天)。streaming 答案:watermark + 允許遲到的量 tradeoff(等越久越準但 state 越大、輸出越晚)。兩個都講,說明你知道同一問題在兩個世界的解法。
+> When asked in an interview "how do you handle late data?" — batch answer: reprocess a window (recompute the last N days daily). Streaming answer: watermark + the lateness-allowance tradeoff (waiting longer is more accurate but grows state and delays output). Give both, showing you know how the same problem is solved in each world.
 
-## State、Checkpoint、Output Modes
+## State, Checkpoint, Output Modes
 
-- **Stateful 操作**(windowed agg、dedup、stream-stream join)要在 trigger 之間記住東西 — state store 存在 executor + checkpoint 到可靠儲存
-- **Checkpoint** 記「讀到哪 + state」— job 掛掉重啟從 checkpoint 續跑,這是 exactly-once 的基石。**Checkpoint 綁定 query 邏輯**,改了 aggregation 邏輯通常不能沿用舊 checkpoint
-- **Output modes**: `append`(只輸出新確定的列,搭 watermark)/ `update`(輸出有變化的列)/ `complete`(每次全量輸出,只適合小結果表)
+- **Stateful operations** (windowed agg, dedup, stream-stream join) must remember things between triggers — the state store lives on executors + checkpoints to reliable storage
+- **Checkpoint** records "read position + state" — a crashed job restarts and resumes from the checkpoint; this is the foundation of exactly-once. **A checkpoint is bound to the query logic** — after changing the aggregation logic you usually can't reuse the old checkpoint
+- **Output modes**: `append` (only emit newly finalized rows, paired with watermark) / `update` (emit changed rows) / `complete` (emit the full result every time — only suitable for small result tables)
 
-## Trigger.AvailableNow — batch 與 streaming 的收斂點
+## Trigger.AvailableNow — Where Batch and Streaming Converge
 
 ```python
 q = out.writeStream.trigger(availableNow=True).option("checkpointLocation", "chk/").start()
 ```
 
-「把目前累積的新資料**一次處理完就停**」— 用 streaming 的 checkpoint/exactly-once 機制跑排程 batch。這是現代 **incremental batch** 的標準做法(取代自己手寫「記錄上次處理到哪個檔案」的邏輯)。
+"Process all the new data accumulated so far, **then stop**" — running scheduled batch with streaming's checkpoint/exactly-once machinery. This is the standard modern approach to **incremental batch** (replacing hand-rolled "record which file was processed last" logic).
 
-> 面試被問「每小時 ingest 新檔案、不重不漏,怎麼設計?」— 這題的現代答案就是 AvailableNow(或 Delta/lakehouse 的等效機制),比自製 high-water-mark table 乾淨。
+> When asked in an interview "ingest new files hourly with no duplicates and no gaps — how do you design it?" — the modern answer to this is AvailableNow (or the Delta/lakehouse equivalent), cleaner than a home-made high-water-mark table.
 
-## Lambda vs Kappa(一段講完)
+## Lambda vs Kappa (one paragraph)
 
-- **Lambda**: batch 層(準確、慢)+ speed 層(即時、近似)雙軌,serving 層合併 — 準但要維護兩套邏輯
-- **Kappa**: 只有 streaming 一軌,歷史重算靠 replay — 一套邏輯,但要求 source 可長期重放
-- **實務現況**: lakehouse(Delta/Iceberg)+ incremental 處理讓兩者界線模糊 — 同一套 code,AvailableNow 跑排程、processingTime 跑近即時。面試講到這一層即可,別背教條。
+- **Lambda**: a batch layer (accurate, slow) + a speed layer (real-time, approximate) in parallel, merged at the serving layer — accurate but requires maintaining two sets of logic
+- **Kappa**: streaming only; historical recomputation relies on replay — one set of logic, but requires a long-term replayable source
+- **Practical reality**: lakehouse (Delta/Iceberg) + incremental processing has blurred the line — the same code runs on a schedule with AvailableNow and near-real-time with processingTime. In interviews, reaching this level is enough; don't recite dogma.
 
-## CDC(Change Data Capture,一段講完)
+## CDC (Change Data Capture, one paragraph)
 
-從 OLTP database 把變更(insert/update/delete)以事件流形式抽出(Debezium 讀 binlog → Kafka → lakehouse merge)。關鍵概念:每筆變更有 **op type + 主鍵 + before/after**,下游用 **merge/upsert** 重建表狀態;順序錯亂與重複靠主鍵 + LSN/ts 的「最後寫入勝」處理 — 又回到冪等與 dedup-by-key。
+Extracting changes (insert/update/delete) from an OLTP database as an event stream (Debezium reads the binlog → Kafka → lakehouse merge). Key concepts: every change carries an **op type + primary key + before/after**; downstream rebuilds table state with **merge/upsert**; out-of-order and duplicate events are handled by primary key + LSN/ts "last write wins" — which brings us back to idempotency and dedup-by-key.
 
-> 面試被問「怎麼把 MySQL 的表同步到 data lake?」— 全量快照 + CDC 增量 + 定期 compaction/merge,講出 delete 怎麼處理(tombstone/merge delete)是加分點。
+> When asked in an interview "how do you sync a MySQL table to a data lake?" — full snapshot + CDC increments + periodic compaction/merge; explaining how deletes are handled (tombstone/merge delete) is a bonus point.
 
-## 一句總結(可以直接背)
+## One-Sentence Summary (memorize verbatim)
 
-「Batch 與 streaming 共用同一套語意問題 — 重複、遲到、順序、冪等;差別只是你在**檔案粒度**還是**事件粒度**面對它們。」能把 batch 題資料裡的重複列講成 at-least-once 的痕跡、把每日檔的跨日事件講成 late data,就是 senior 與 mid-level 的分界線。
+"Batch and streaming share the same set of semantic problems — duplicates, lateness, ordering, idempotency; the only difference is whether you face them at **file granularity** or **event granularity**." Being able to explain duplicate rows in a batch problem's data as traces of at-least-once, and cross-day events in daily files as late data, is the line between senior and mid-level.

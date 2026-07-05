@@ -51,7 +51,7 @@ SQL question format:
 
 ## Problem
 - **Platform:** LeetCode
-- **Number / Title:** LeetCode 1280｜Students and Examinations
+- **Number / Title:** LeetCode 1280 | Students and Examinations
 - **URL:** https://leetcode.com/problems/students-and-examinations/
 - **Difficulty:** Medium
 - **Pattern:** CROSS JOIN + LEFT JOIN + GROUP BY (show-zeros)
@@ -178,21 +178,22 @@ Rationale: the user opens `problem.md` in a left pane and the notebook in a righ
 {Business context paragraph, then data-landscape paragraph(s), then computation
  semantics WOVEN INTO PROSE: output grain, derived-column definitions,
  inclusion/exclusion rules, boundary semantics. FINAL paragraph = deliverable
- sentence: "將結果以 {format} 寫入 output/, 依 X 分區, 並依 A ASC 排序" —
- or "列的順序不作要求(測試會排序後比對)". NO numbered solution steps.
- NO function/algorithm hints. NO trailing 細節澄清 section.}
+ sentence: "Write the result to output/ as {format}, partitioned by X,
+ sorted by A ASC" — or "row order is not required (tests sort before
+ comparing)". NO numbered solution steps.
+ NO function/algorithm hints. NO trailing clarifications section.}
 
 ### Rule 1 — {Name}   (R:Hard: ≥3 named rule subsections)
 {1 paragraph prose stating the rule.}
 
-範例：
+Examples:
 - {Example bullet — concrete IDs and values}
 - {Edge case bullet — NULL / zero / boundary}
 - {Contrast bullet — positive case}
 - {Optional pathological case}
 
 ## Example(s)
-{LeetCode-style worked example: input excerpt → output rows → 說明.}
+{LeetCode-style worked example: input excerpt → output rows → explanation.}
 
 ## Input
 
@@ -205,7 +206,7 @@ Schema (every column MUST have explicit type):
 - `col2: date`
 - `col3: double`
 
-`{filename}` 內容範例（logical view if parquet）：
+`{filename}` sample content (logical view if parquet):
 
 | col1 | col2 | ... |
 |---|---|---|
@@ -238,9 +239,9 @@ Schema:
 |---|---|
 | ... | ... |
 
-{Ordering contract restated: exact sort keys, or 「列順序不作要求」}
+{Ordering contract restated: exact sort keys, or "row order is not required"}
 
-Sample（前 N 列，供 schema 比對）：
+Sample (first N rows, for schema comparison):
 
 | ... |
 
@@ -252,9 +253,9 @@ Sample（前 N 列，供 schema 比對）：
 
 **Key structural rules** (also in [SKILL.md](SKILL.md) Calibration section):
 
-- **Requirements woven into Description/Rules — never appended.** Ordering, return format, partitioning, derived-column formulas all appear in the statement body. A separate clarifications dump = the statement failed. (Retired anti-pattern: `## Task` numbered-steps + trailing 細節澄清 sections — Task steps leak the solution recipe.)
+- **Requirements woven into Description/Rules — never appended.** Ordering, return format, partitioning, derived-column formulas all appear in the statement body. A separate clarifications dump = the statement failed. (Retired anti-pattern: `## Task` numbered-steps + trailing clarifications sections — Task steps leak the solution recipe.)
 - **The deliverable is a sentence, not a recipe.** Final Description paragraph states WHAT to produce and WHERE to write. Never name functions or algorithm steps (`to_date`, "GroupBy → count", "lag → cumsum").
-- **Ordering contract explicit and verifiable.** Exact order → single sorted file, test compares write order strictly. Otherwise 「順序不作要求」 → test re-sorts. Never demand a sort the test can't physically verify (global order inside a partitioned dataset is not a real contract).
+- **Ordering contract explicit and verifiable.** Exact order → single sorted file, test compares write order strictly. Otherwise "order is not required" → test re-sorts. Never demand a sort the test can't physically verify (global order inside a partitioned dataset is not a real contract).
 - **No off-topic terminology** — don't mention concepts from sibling problems (e.g., "session" inside a plain counting problem).
 - Examples are **bullets, not prose-embedded** — easier to parse individually; reading load comes from quantity + cross-referencing.
 - **Each input source must include sample content**, not just schema. Parquet → logical-view table. CSV/JSONL/TXT → raw text in fenced block.

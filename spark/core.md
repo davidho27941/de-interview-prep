@@ -97,15 +97,15 @@ df.groupBy("merchant_id").agg(
     F.sum(F.when(F.col("status") == "matched",  1).otherwise(0)).alias("matched_count"),
     F.sum(F.when(F.col("status") == "unpaid",   1).otherwise(0)).alias("unpaid_count"),
 )
-# 等價: F.count(F.when(cond, 1)) — count 忽略 NULL, when 無 otherwise 時不符即 NULL
+# Equivalent: F.count(F.when(cond, 1)) — count ignores NULL; when without otherwise yields NULL for non-matches
 ```
 
-**Pivot 後補零** — `pivot` 產生的格子沒資料是 NULL 不是 0，counting 場景幾乎都要接 `fillna`:
+**Zero-filling after pivot** — cells produced by `pivot` with no data are NULL, not 0; counting scenarios almost always need a `fillna` right after:
 
 ```python
 df.groupBy("merchant_id").pivot("status", ["matched", "unpaid"]).count() \
   .fillna(0, subset=["matched", "unpaid"])
-# 給 pivot 明確的值清單: 少一次全表掃描, 且缺席類別仍會成為欄位
+# Give pivot an explicit value list: saves one full-table scan, and absent categories still become columns
 ```
 
 ## Spark SQL Bridge
@@ -142,11 +142,11 @@ result.write.mode("append").csv("out/path", header=True)
 
 `mode` options: `"overwrite"`, `"append"`, `"ignore"`, `"error"` (default).
 
-**排序契約與檔案佈局:**
+**Ordering contract and file layout:**
 
-- 需要「輸出照指定順序」→ `orderBy(...)` 後 `coalesce(1)` 寫**單一檔** — 單檔讀回會保留列順序,契約才驗得了
-- Partitioned 輸出**沒有全域列順序**可言 — 讀回順序由 partition 目錄與檔案切分決定。spec 若寫 partitioned + sorted,那個 sort 是無法驗證的假契約
-- `orderBy` 之後再 `repartition` 會毀掉排序(shuffle);順序永遠是 write 前最後一步
+- Need "output in a specified order" → `orderBy(...)` then `coalesce(1)` to write a **single file** — reading a single file back preserves row order, so the contract is actually verifiable
+- Partitioned output has **no global row order** to speak of — read-back order is determined by partition directories and file splits. If a spec says partitioned + sorted, that sort is an unverifiable fake contract
+- `repartition` after `orderBy` destroys the ordering (shuffle); ordering is always the last step before write
 
 ## DataFrame ↔ RDD
 
@@ -173,7 +173,7 @@ In modern Spark you almost never touch RDDs directly. If asked: `df.rdd` gives t
 - Calling `.collect()` on a giant DataFrame — pulls everything to driver, OOMs.
 - Treating `repartition(1)` and `coalesce(1)` as the same — `repartition` shuffles, `coalesce` doesn't (faster but can be unbalanced).
 - Forgetting that `dropDuplicates()` with no args dedups on ALL columns; usually you want `dropDuplicates(["id"])` — and see the determinism warning in [window-sessionization.md](window-sessionization.md).
-- **Sort order is never preserved** through `withColumn` / `filter` / `join` / `groupBy`. 題目要求 sort → 最後一定 explicit `.orderBy()`，不能假設「前面排過就 OK」。
+- **Sort order is never preserved** through `withColumn` / `filter` / `join` / `groupBy`. If the problem requires a sort → always end with an explicit `.orderBy()`; never assume "I sorted earlier so it's fine".
 
 ## Minimal Run-Locally Setup
 

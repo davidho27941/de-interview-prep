@@ -22,34 +22,34 @@ df.withColumn("rn", F.row_number().over(w_latest)).filter(F.col("rn") == 1).drop
 
 **Frame gotcha:** the default frame for an unordered window is the entire partition, but for an *ordered* window with an aggregate (sum/avg/etc.) the default frame is `unboundedPreceding → currentRow` — which is the running total, often surprising people who wanted the partition total. Be explicit with `rowsBetween` / `rangeBetween` when it matters.
 
-**Direction gotcha:** `orderBy` in a window defaults to ASC. Spec verbs map to direction — 「最新/最多/最高/latest/most/highest」→ `F.col(x).desc()`;「最早/最少/oldest」→ default ASC. Circle the verb while reading the spec, pick the direction before writing the window.
+**Direction gotcha:** `orderBy` in a window defaults to ASC. Spec verbs map to direction — "latest/most/highest" → `F.col(x).desc()`; "earliest/fewest/oldest" → default ASC. Circle the verb while reading the spec, pick the direction before writing the window.
 
 ## Window ranking trio: rank vs dense_rank vs row_number
 
-當你想「每 partition 取 top N」時，這三個的差別**會直接決定你 filter 後留下幾 row**：
+When you want "top N per partition", the difference between these three **directly determines how many rows survive your filter**:
 
-| Function | 同值（tie）時 | filter rn==1 後 | 用途 |
+| Function | On ties | After filter rn==1 | Use case |
 |---|---|---|---|
-| `F.rank()` | 同 rank（有 gap）：1,1,3 | **多 row 通過** | 想保留 ties |
-| `F.dense_rank()` | 同 rank（無 gap）：1,1,2 | **多 row 通過** | 想保留 ties，連號計算 |
-| **`F.row_number()`** | **強制連續編號** 1,2,3 | **每 partition 必定 1 row** | **「top 1 per group」的標準解** |
+| `F.rank()` | Same rank (with gaps): 1,1,3 | **Multiple rows pass** | Keep ties |
+| `F.dense_rank()` | Same rank (no gaps): 1,1,2 | **Multiple rows pass** | Keep ties, consecutive numbering |
+| **`F.row_number()`** | **Forced consecutive numbering** 1,2,3 | **Exactly 1 row per partition** | **The standard solution for "top 1 per group"** |
 
-**反射：** 看到「每 X 取一個」→ `row_number()`。看到「每 X 取所有並列冠軍」→ `rank()` / `dense_rank()`。
+**Reflex:** See "pick one per X" → `row_number()`. See "pick all tied winners per X" → `rank()` / `dense_rank()`.
 
 ```python
-# 標準「每 country 取最活躍 user」
+# The standard "most active user per country"
 w = Window.partitionBy('country').orderBy(F.col('cnt').desc(), F.col('user_id'))
 df.withColumn('rn', F.row_number().over(w)).filter(F.col('rn') == 1)
-# ↑ 換成 rank() 或 dense_rank() 在有 tie 時會 leak 多 row
+# ↑ Swapping in rank() or dense_rank() leaks multiple rows when there are ties
 ```
 
 ## Deduplication — deterministic vs arbitrary
 
 ```python
-# ❌ 非決定性: dropDuplicates 保留「任意」一列 — 每次跑、每種 partition 佈局可能不同
+# ❌ Non-deterministic: dropDuplicates keeps an "arbitrary" row — may differ per run and per partition layout
 df.dropDuplicates(["order_id"])
 
-# ✅ 決定性: Window + row_number + 明確 tiebreaker
+# ✅ Deterministic: Window + row_number + explicit tiebreaker
 w = Window.partitionBy("order_id").orderBy(F.col("updated_at").desc(), F.col("source_file"))
 deduped = (df.withColumn("rn", F.row_number().over(w))
              .filter(F.col("rn") == 1)
@@ -66,21 +66,21 @@ deduped = (df.withColumn("rn", F.row_number().over(w))
 
 ```python
 df.groupBy("user_id").agg(F.collect_list("event_type"))
-# ⚠ collect_list 的元素順序「不保證」— shuffle 後的到達順序, 每次可能不同
+# ⚠ collect_list element order is NOT guaranteed — arrival order after shuffle, may differ every run
 ```
 
-需要「按時間順序的事件序列」時,兩個決定性做法:
+When you need "the event sequence in time order", two deterministic approaches:
 
 ```python
-# 法 1: struct 排序後再取欄位 (推薦)
+# Approach 1: sort structs, then extract the field (recommended)
 df.groupBy("user_id").agg(
     F.sort_array(F.collect_list(F.struct("event_ts", "event_type"))).alias("seq")
 ).withColumn("event_seq", F.col("seq.event_type"))
 
-# 法 2: 先在 window 內排好再 collect (依賴實作細節, 法 1 更穩)
+# Approach 2: sort within a window first, then collect (relies on implementation details; approach 1 is more robust)
 ```
 
-面試題「輸出每個 user 的事件路徑 (view→cart→purchase)」→ 沒排序的 collect_list 會間歇性錯,小資料還常常「剛好對」— 典型的 flaky 正確性陷阱。
+Interview question "output each user's event path (view→cart→purchase)" → an unsorted collect_list fails intermittently, and on small data it often happens to look right — a classic flaky correctness trap.
 
 ## Sessionization Template (worth memorizing)
 

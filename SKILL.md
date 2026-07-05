@@ -105,14 +105,14 @@ Examples: `challenges/d01/d01.ipynb`, `challenges/mock1/q3/input/access-2026-06-
 
 To balance teaching depth with realistic exam preparation, use a 3-part layered structure:
 
-**Part 1: Core (教學型)** — 5 problems with full trade-off discussions in problem markdown, diagnostic hints in tests. Reading time and time targets generous.
+**Part 1: Core (teaching-style)** — 5 problems with full trade-off discussions in problem markdown, diagnostic hints in tests. Reading time and time targets generous.
 
-**Part 1.5: Extensions (反思)** — After each Core problem's tests pass, a 🔬 Extension markdown cell poses 2-4 "what if?" questions. No new code required (or optional). Builds depth without bloating problem count.
+**Part 1.5: Extensions (reflection)** — After each Core problem's tests pass, a 🔬 Extension markdown cell poses 2-4 "what if?" questions. No new code required (or optional). Builds depth without bloating problem count.
   - Examples: "What if users table was 1B rows?", "What if amount column was sometimes NULL?", "Why doesn't Spark broadcast both sides?"
 
-**Part 2: Sub-pattern (進階變體)** — 3 problems exploring related techniques the Core didn't cover (e.g., self-join, conditional ANTI, explicit schema). Still has problem statement context but less trade-off scaffolding.
+**Part 2: Sub-pattern (advanced variants)** — 3 problems exploring related techniques the Core didn't cover (e.g., self-join, conditional ANTI, explicit schema). Still has problem statement context but less trade-off scaffolding.
 
-**Part 3: Cold problem (冷起頭裸題)** — 1 problem at the end with:
+**Part 3: Cold problem (cold-start, no scaffolding)** — 1 problem at the end with:
   - Full business context narrative (multi-paragraph statement)
   - NO trade-off list, NO diagnostic hints, NO "use this approach" suggestion
   - Single assert block with overall expected output
@@ -124,11 +124,11 @@ This layered structure trains: idiom recognition (Core) → depth thinking (Exte
 ### Single-section notebook structure (per Core/Sub problem)
 
 ```
-[Markdown] # D{NN}｜<day title>
+[Markdown] # D{NN} — <day title>
 [Markdown] ## Setup (imports + Spark session if needed)
 [Code]     # imports, SparkSession.builder...
 
-[Markdown] ## DN-P1｜<problem name>
+[Markdown] ## DN-P1 — <problem name>
 [Markdown] **Target:** X min. **Calibration:** [R:_, O:_]
            Problem statement. Input folder. Expected output. Trap cases.
 [Code]     # SOLUTION — user fills in
@@ -138,7 +138,7 @@ This layered structure trains: idiom recognition (Core) → depth thinking (Exte
            # assert correctness, edge cases, output shape, sorting
            print("✓ DN-P1 passed")
 
-[Markdown] ## DN-P2｜<problem name>
+[Markdown] ## DN-P2 — <problem name>
 [Code]     # SOLUTION
 [Code]     # TESTS
 ... and so on
@@ -334,7 +334,7 @@ The 4 Pre-Submit questions applied to TEST DESIGN (not just solution):
 - Anti-patterns to remove before publishing:
   - "Find X — wait, this is too complex, let me simplify to..."
   - "Find X (or maybe Y, depending on how you read this)"
-  - "**簡化版重新敘述：** ..." (signals the original was ambiguous and wasn't replaced)
+  - "**Simplified restatement:** ..." (signals the original was ambiguous and wasn't replaced)
   - "Note: actually this might be ambiguous so..." (use Check 4 ambiguity audit format instead)
 - Rule: decide the final problem before writing. If during writing you realize the original frame doesn't work, rewrite from scratch, don't leave both versions.
 - If the problem GENUINELY has multiple valid readings (ambiguity audit, Check 4), present them in a structured way (A/B/C readings) NOT as inline iteration.
@@ -352,7 +352,7 @@ If the canonical solution does any equality / inequality comparison on aggregate
 **Fix (one of):**
 - **A**: Use `DecimalType(precision, 2)` end-to-end in schema. Test expected computed with Decimal. `==` is safe.
 - **B**: Keep `DoubleType` but spec explicitly requires `round(x, 2)` or `abs(a - b) < 0.01` before comparison. Test expected computed with the same rounding.
-- **C** (recommended for money): Both — schema is Decimal AND the 細節澄清 includes a "float trap" teaching note.
+- **C** (recommended for money): Both — schema is Decimal AND the clarifications include a "float trap" teaching note.
 
 Never leave the spec silent when currency / aggregated numerics feed into comparisons.
 
@@ -384,9 +384,9 @@ Anchor: a Hard problem produces substantial reading load through *content volume
 
 | Level | Target reading time | Characteristics |
 |---|---|---|
-| **簡單 Easy** | ~1 min | 1 paragraph or 2-3 bullet rules. No nested business context. Sample input/output fits on one screen. |
-| **中等 Medium** | ~3 min | 1-2 paragraphs of context + a few rules. Some business framing to internalize. Sample I/O shows edge cases. |
-| **困難 Hard** | ~5-7 min | Scenario paragraph + **≥3 named business rules**, each with its own prose + 3-4 bullet examples (including edge cases). Multiple input sources, each with both schema AND sample content. Reader must cross-reference rule examples with input sample data to build a mental table before coding. |
+| **Easy** | ~1 min | 1 paragraph or 2-3 bullet rules. No nested business context. Sample input/output fits on one screen. |
+| **Medium** | ~3 min | 1-2 paragraphs of context + a few rules. Some business framing to internalize. Sample I/O shows edge cases. |
+| **Hard** | ~5-7 min | Scenario paragraph + **≥3 named business rules**, each with its own prose + 3-4 bullet examples (including edge cases). Multiple input sources, each with both schema AND sample content. Reader must cross-reference rule examples with input sample data to build a mental table before coding. |
 
 **Two-file structure (LeetCode-style split view):**
 
@@ -403,16 +403,16 @@ This mimics LeetCode's split-pane UX. In JupyterLab or VSCode: split editor, `pr
 ## Description
 [Business context paragraph, then data-landscape paragraph(s), then computation
  semantics WOVEN INTO PROSE: output grain, derived-column definitions,
- inclusion/exclusion rules, boundary semantics (e.g., "恰好 30 分鐘屬同一
- session"). The FINAL paragraph is the deliverable sentence:
- "將結果以 {format} 寫入 output/, 依 X 分區, 並依 A ASC、B ASC 排序"
- — or "列的順序不作要求(測試會排序後比對)".]
+ inclusion/exclusion rules, boundary semantics (e.g., "exactly 30 minutes
+ belongs to the same session"). The FINAL paragraph is the deliverable sentence:
+ "Write the result as {format} to output/, partitioned by X, sorted by A ASC, B ASC"
+ — or "row order is not required (tests sort before comparing)".]
 
 ### Rule 1 — {name}   (R:Hard: ≥3 named rule subsections)
 [Prose statement + 3-4 bullet examples incl. edge cases]
 
 ## Example(s)
-[LeetCode-style worked example: input excerpt → output rows → 說明.]
+[LeetCode-style worked example: input excerpt → output rows → explanation.]
 
 ## Input
 [Folder path + per-source schema (EVERY column with explicit type) + per-source
@@ -428,7 +428,7 @@ This mimics LeetCode's split-pane UX. In JupyterLab or VSCode: split editor, `pr
  orphan keys) — LeetCode-style disclosure. Perf expectations if relevant.]
 ```
 
-**Retired anti-pattern:** a separate `## Task` numbered-steps section and a trailing `**細節澄清**` (clarifications) list. Both violate platform conventions — Task steps leak the solution recipe (e.g., "GroupBy X → count", "lag → cumsum"), and a clarifications dump means the problem statement was incomplete without a patch section. Every requirement lives in Description/Rules/Output where the reader parses it out themselves.
+**Retired anti-pattern:** a separate `## Task` numbered-steps section and a trailing `**clarifications**` list. Both violate platform conventions — Task steps leak the solution recipe (e.g., "GroupBy X → count", "lag → cumsum"), and a clarifications dump means the problem statement was incomplete without a patch section. Every requirement lives in Description/Rules/Output where the reader parses it out themselves.
 
 **Canonical notebook cell-0 pointer:**
 
@@ -451,7 +451,7 @@ Cells 1-3: setup / solution scaffold / tests-DO-NOT-MODIFY. All spec content sta
 **Key structural rules:**
 - **Requirements are woven into Description/Rules — never appended.** Ordering, return format, partitioning, derived-column formulas, inclusion/exclusion semantics all appear where the reader naturally encounters them. A separate "clarifications" dump means the statement failed.
 - **The deliverable is a sentence, not a recipe.** State WHAT to produce and WHERE to write it. Never enumerate solution steps or name functions/algorithms (`to_date`, "GroupBy then count", "lag → cumsum") — deriving the approach IS the exam.
-- **Ordering contract must be explicit and verifiable.** Either the description demands an exact order (single sorted file; test compares write order strictly) or says 「順序不作要求」 (test re-sorts before comparing). Never demand a sort the test cannot physically verify (e.g., global order inside a partitioned dataset).
+- **Ordering contract must be explicit and verifiable.** Either the description demands an exact order (single sorted file; test compares write order strictly) or says "no ordering requirement" (test re-sorts before comparing). Never demand a sort the test cannot physically verify (e.g., global order inside a partitioned dataset).
 - **No off-topic terminology.** Don't mention concepts from other problems (e.g., "session" in a plain counting problem) — it misleads readers into over-engineering.
 - Examples are **bullets, not prose-embedded** — easier to parse individually; reading load comes from quantity + cross-referencing.
 - Each input source MUST have sample content (not just schema). See [Input Convention](#input-convention-folder-based-with-decoys) and [mock-exam-guide.md](mock-exam-guide.md) Rule 3.
@@ -473,9 +473,9 @@ An "operation" is one discrete logical step:
 
 | Level | Operations count | Characteristics |
 |---|---|---|
-| **簡單 Easy** | 1-5 ops | Single-step transform or basic aggregation. One JOIN max. No nested logic. Inline data OK. |
-| **中等 Medium** | 5-10 ops | Multi-step linear pipeline. 1-2 JOINs, 1 window function, maybe one COALESCE. Edge case handling for nulls. Read from file is expected; final write optional. |
-| **困難 Hard** | 10-15 ops | **Full I/O lifecycle: read file(s) → transform → write file(s).** Complex business logic with conditional branches. Multiple JOINs or CTEs. Recursive CTE, multi-window, or multi-pass transforms. Edge cases for null/zero/empty/duplicate explicitly required. |
+| **Easy** | 1-5 ops | Single-step transform or basic aggregation. One JOIN max. No nested logic. Inline data OK. |
+| **Medium** | 5-10 ops | Multi-step linear pipeline. 1-2 JOINs, 1 window function, maybe one COALESCE. Edge case handling for nulls. Read from file is expected; final write optional. |
+| **Hard** | 10-15 ops | **Full I/O lifecycle: read file(s) → transform → write file(s).** Complex business logic with conditional branches. Multiple JOINs or CTEs. Recursive CTE, multi-window, or multi-pass transforms. Edge cases for null/zero/empty/duplicate explicitly required. |
 
 ### The 3×3 Matrix — Why Both Axes Matter
 
@@ -513,11 +513,11 @@ Every prep day is organized as a 3-layer hierarchy. This forces separation of *u
 
 ```
 Day N parent (~ Focus + Output, minimal)
-├── Day N Sub｜Review – <topic>
-│     (concept review: 必懂觀念 + 常見 pattern, ~15-30 min reading)
-└── Day N Sub｜Challenges – <count> <type> problems (~90 min)
-      ├── DN-P1｜<problem name>
-      ├── DN-P2｜<problem name>
+├── Day N Sub — Review – <topic>
+│     (concept review: must-know concepts + common patterns, ~15-30 min reading)
+└── Day N Sub — Challenges – <count> <type> problems (~90 min)
+      ├── DN-P1 — <problem name>
+      ├── DN-P2 — <problem name>
       └── ... (each problem = its own page with solving slots)
 ```
 
@@ -535,48 +535,48 @@ Do not duplicate concept content or problem lists in the parent — they belong 
 
 ### Review sub-task body
 
-**Write the actual study material directly into the page in Traditional Chinese.** Do NOT use file-pointer checklists ("read these files"). The user reads the Notion page to study; the skill files are only a deep-dive reference.
+**Write the actual study material directly into the page in the user's language.** Do NOT use file-pointer checklists ("read these files"). The user reads the Notion page to study; the skill files are only a deep-dive reference.
 
 ```
-# Review Concept｜<topic>
+# Review Concept — <topic>
 
-## 目標
+## Goal
 <2-3 sentences naming the mental model + reflex to build>
 
-## 必懂觀念
-### 1. <Concept 1 name in EN or 繁中>
+## Must-know concepts
+### 1. <Concept 1 name>
 <full explanation, 2-4 paragraphs, with embedded code where useful>
 ### 2. <Concept 2 name>
 ...
 
-## 常見 pattern
+## Common patterns
 ### <Pattern name>
-```code with comments in 繁中```
+```code with comments```
 <short explanation of when to reach for this pattern, what trap it avoids>
 
-## 常見錯誤對照表
-| 錯誤寫法 | 症狀 | 修法 |
+## Common-mistake reference table
+| Wrong code | Symptom | Fix |
 |---|---|---|
 ...
 
-## 今日 Pre-Submit Ritual 重點
+## Today's Pre-Submit Ritual focus
 <the 4 questions, contextualized to this day's content>
 
-## 完整 skill reference（需要查細節時）
+## Full skill reference (for detail lookups)
 <absolute path to the relevant skill file — single line, last in the page>
 ```
 
 **Conventions:**
-- Write in 繁中 (Traditional Chinese) for prose; keep code English.
+- Write prose in the user's language; keep code English.
 - Use code blocks generously — concrete > abstract.
-- Use a "常見錯誤對照表" with three columns (錯誤寫法 / 症狀 / 修法) for the day's common traps. Easy to scan.
+- Use a "common-mistake reference table" with three columns (wrong code / symptom / fix) for the day's common traps. Easy to scan.
 - Skill file path goes at the BOTTOM as a single reference line, not as a checklist of sections to read.
 - Length target: enough that the user can study it without opening any other file. Roughly 800-1500 words equivalent.
 
 ### Challenge holder body
 
 ```
-# Coding Challenges｜<count> problems × ~<min>min
+# Coding Challenges — <count> problems × ~<min>min
 ## Solving Template (use on every problem)
 [insert 4-stage template — see below]
 ```
@@ -586,7 +586,7 @@ The 4-stage template lives on the Challenge holder so the user sees it before op
 ### Individual problem body
 
 ```
-# DN-PX｜<problem name>
+# DN-PX — <problem name>
 **Target time:** X min
 
 ## Problem
@@ -642,7 +642,7 @@ For later (harder) days, sizing shifts as difficulty rises:
 
 A coaching scaffold for every problem. Resist skipping ahead — each stage protects against a specific failure mode.
 
-### Stage 0｜題目與限制確認 (problem clarification)
+### Stage 0 — Problem clarification
 Before writing code:
 - What does the problem return? (value, index, list, dict, file?)
 - Input size / constraints?
@@ -650,7 +650,7 @@ Before writing code:
 - Output sort key + direction?
 - For folder problems: target files? decoys? recursion?
 
-### Stage 1｜先確保能過測資 (first working)
+### Stage 1 — First working solution
 Goal: write the most direct solution that passes sample tests. Don't optimize, don't over-engineer.
 
 ```text
@@ -659,14 +659,14 @@ Key transforms/clauses used:
 Sample case verified:
 ```
 
-### Stage 2｜再考慮複雜度與邊界 (edge cases + complexity)
+### Stage 2 — Edge cases + complexity
 Now patch the obvious issues:
 - Pre-Submit Ritual: empty / aggregate-COALESCE / join type / boundary
 - For folder problems: sanity-print file count, encoding fallback
 - For SQL: NULL semantics, scalar subquery COALESCE
 - For PySpark: `&` `|` not `and` `or`, window frame explicit
 
-### Stage 3｜再把 code 整理乾淨 (production-minded cleanup)
+### Stage 3 — Production-minded cleanup
 - [ ] Variable naming clear
 - [ ] No debug prints
 - [ ] No nested loop where flat works
@@ -674,7 +674,7 @@ Now patch the obvious issues:
 - [ ] Edge cases explicitly handled (not relied on by accident)
 - [ ] Brief comment only where the *why* is non-obvious
 
-### Stage 4｜進階寫法 (advanced, only if 1-3 are solid)
+### Stage 4 — Advanced (only if 1-3 are solid)
 - More concise / idiomatic version (e.g., Spark SQL vs DataFrame, list comprehension vs explicit loop)
 - Note the trade-off
 - Decide: would you actually use this in a timed exam?
@@ -689,7 +689,7 @@ When the user asks to practice:
 - Default to **scenario-style problems** over LeetCode-style algorithmic problems
 - Select problems matching the assessment format (SQL / Python scenario / Debug / PySpark)
 - **Tag every problem with `[R:level, O:level]`** per the Problem Calibration above. State it explicitly when presenting the problem (e.g., "Q3 — Python scenario [R:Medium, O:Hard], target 18 min").
-- If the user asks for a specific calibration ("給我一題 R:Hard O:Medium 的 SQL"), generate to that target.
+- If the user asks for a specific calibration ("give me an R:Hard O:Medium SQL problem"), generate to that target.
 - Provide clear problem statements with sample input/output
 - For custom DE problems, generate realistic test data with explicit edge cases (None, 0, empty, duplicates)
 - Track attempted problems to avoid repeats; track misses by calibration tag so the failure mode (reading vs operations) is visible
@@ -816,7 +816,7 @@ When detected: suggest a break (walk, rest). Performance typically improves dram
 
 ## Communication Style
 
-- Respond in the same language as the user (Traditional Chinese for this user)
+- Respond in the user's language
 - Be concise: identify the bug, explain WHY, show the fix
 - Use concrete examples with step-by-step traces for new patterns
 - Run the Pre-Submit Ritual explicitly when reviewing code — don't assume the user did

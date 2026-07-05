@@ -8,7 +8,7 @@ df.persist(StorageLevel.MEMORY_AND_DISK)
 df.unpersist()          # release
 ```
 
-**When to cache:** the same DataFrame is used in multiple downstream actions. Don't cache reflexively — it costs memory. **Cache vs checkpoint:** cache 保留 lineage(失敗可重算);`df.checkpoint()` 截斷 lineage 落地到 disk — 超長 iterative pipeline(loop 內反覆 transform)才需要,防 plan 爆炸。
+**When to cache:** the same DataFrame is used in multiple downstream actions. Don't cache reflexively — it costs memory. **Cache vs checkpoint:** cache preserves lineage (recomputable on failure); `df.checkpoint()` truncates lineage and materializes to disk — only needed for very long iterative pipelines (repeated transforms in a loop) to prevent plan explosion.
 
 ## Repartition / Coalesce
 
@@ -18,58 +18,58 @@ df.repartition("country")       # partition by column (still shuffles)
 df.coalesce(1)                  # reduce partitions WITHOUT shuffle — for writing one file
 ```
 
-`repartition(1)` 與 `coalesce(1)` 不同 — 前者 shuffle(慢但均衡),後者合併現有 partition(快但可能不均)。
+`repartition(1)` and `coalesce(1)` are different — the former shuffles (slow but balanced), the latter merges existing partitions (fast but potentially unbalanced).
 
-## Shuffle 基本盤 + AQE
+## Shuffle Fundamentals + AQE
 
-- **`spark.sql.shuffle.partitions` 預設 200** — 每次 groupBy/join 後的 partition 數。小資料 200 個微 partition 是浪費;大資料 200 個又太少。經典面試題:「為什麼我 5MB 的資料 groupBy 之後有 200 個 task?」
-- **AQE (Adaptive Query Execution, Spark 3.2+ 預設開)** 在 runtime 依實際統計重新優化:
-  - 自動 coalesce 過小的 shuffle partitions(緩解上面那條)
-  - 自動把 sort-merge join 轉 broadcast join(當 runtime 發現一邊其實很小)
-  - 自動拆 skewed partition(`skewJoin`)
-- **Join 策略光譜:** broadcast hash join(一邊小)→ sort-merge join(兩邊大,預設)→ shuffle hash join / broadcast nested loop(non-equi join 的退路 — range join 常落在這,見 [joins.md](joins.md) SCD2 節)。
+- **`spark.sql.shuffle.partitions` defaults to 200** — the partition count after every groupBy/join. For small data, 200 micro-partitions are wasteful; for large data, 200 is too few. Classic interview question: "Why does my 5MB dataset produce 200 tasks after a groupBy?"
+- **AQE (Adaptive Query Execution, on by default since Spark 3.2)** re-optimizes at runtime based on actual statistics:
+  - Automatically coalesces overly small shuffle partitions (mitigating the point above)
+  - Automatically converts sort-merge joins to broadcast joins (when runtime discovers one side is actually small)
+  - Automatically splits skewed partitions (`skewJoin`)
+- **Join strategy spectrum:** broadcast hash join (one side small) → sort-merge join (both sides large, the default) → shuffle hash join / broadcast nested loop (the fallback for non-equi joins — range joins often land here; see the SCD2 section in [joins.md](joins.md)).
 
-## 讀 explain()
+## Reading explain()
 
 ```python
 df.explain()                    # physical plan
 df.explain("formatted")         # cleaner version
 ```
 
-看什麼:
+What to look for:
 
-- **`Exchange`** = shuffle 發生的位置。plan 裡每個 Exchange 都是一次全網路重分佈 — 數 Exchange 個數是估 job 成本的第一步
-- **`BroadcastHashJoin ... BuildRight/BuildLeft`** = 哪一邊被 broadcast(BuildRight = 右邊)。Broadcast 大表會 OOM
-- **`PushedFilters: [...]`**(parquet scan)= predicate pushdown 有沒有真的推下去
-- **`AQEShuffleRead`** = AQE 介入過的痕跡
+- **`Exchange`** = where a shuffle happens. Every Exchange in the plan is a full network redistribution — counting Exchanges is the first step in estimating job cost
+- **`BroadcastHashJoin ... BuildRight/BuildLeft`** = which side gets broadcast (BuildRight = the right side). Broadcasting a large table will OOM
+- **`PushedFilters: [...]`** (parquet scan) = whether predicate pushdown actually happened
+- **`AQEShuffleRead`** = evidence that AQE intervened
 
 ## Skew
 
-If one key has 90% of the rows, that one partition holds up the whole job. 症狀: Spark UI 裡一個 task 跑分鐘級、其他毫秒級。
+If one key has 90% of the rows, that one partition holds up the whole job. Symptom: in the Spark UI, one task runs for minutes while the others take milliseconds.
 
-Mitigations(由簡到繁):
-1. **Broadcast the other side**(skew 只在 shuffle join 有害;broadcast 免 shuffle)
-2. **AQE skew join**(Spark 3.2+ 通常自動;確認 `spark.sql.adaptive.skewJoin.enabled`)
-3. **Salting** — key 加隨機後綴打散,兩段式聚合:
+Mitigations (from simplest to most involved):
+1. **Broadcast the other side** (skew only hurts in shuffle joins; broadcast avoids the shuffle)
+2. **AQE skew join** (usually automatic in Spark 3.2+; confirm `spark.sql.adaptive.skewJoin.enabled`)
+3. **Salting** — append a random suffix to the key to spread it out, then aggregate in two stages:
 
 ```python
-# Stage 1: 加鹽聚合
+# Stage 1: salted aggregation
 salted = df.withColumn("salt", (F.rand() * 8).cast("int"))
 partial = salted.groupBy("hot_key", "salt").agg(F.sum("x").alias("s"))
-# Stage 2: 去鹽總聚合
+# Stage 2: de-salted final aggregation
 final = partial.groupBy("hot_key").agg(F.sum("s"))
 ```
 
-## 面試常見性能問答
+## Common Interview Performance Q&A
 
-> 「groupBy 跟 Window 都能算聚合,差在哪?」
+> "groupBy and Window can both compute aggregates — what's the difference?"
 
-groupBy **收斂列數**(每 group 一列);Window **保留列數**(每列附上 group 統計)。要「每列跟它的 group 平均比較」→ Window 一步;groupBy 要再 join 回去(多一次 shuffle)。
+groupBy **collapses rows** (one row per group); Window **preserves rows** (each row is annotated with group statistics). To "compare each row against its group average" → Window does it in one step; groupBy requires a join back (one more shuffle).
 
-> 「怎麼減少 shuffle?」
+> "How do you reduce shuffles?"
 
-Broadcast 小表、先 filter/aggregate 再 join(縮小 shuffle 的量)、同 key 的多次操作間 repartition 一次重用分佈、讀取端用 partition pruning 少讀。
+Broadcast small tables, filter/aggregate before joining (shrink the shuffled volume), repartition once and reuse the distribution across multiple operations on the same key, and use partition pruning on the read side to read less.
 
-> 「輸出一堆小檔怎麼辦?」
+> "What do you do about a pile of small output files?"
 
-`df.repartition("partition_key").write.partitionBy("partition_key")` — 見 [io-formats.md](io-formats.md) small files 節。
+`df.repartition("partition_key").write.partitionBy("partition_key")` — see the small files section in [io-formats.md](io-formats.md).
