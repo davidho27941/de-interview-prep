@@ -169,20 +169,20 @@ Each problem lives as TWO files in its per-Q folder:
 
 Rationale: the user opens `problem.md` in a left pane and the notebook in a right pane, so re-reading the spec while coding is instant (no scrolling inside the notebook).
 
-### Canonical R:Hard `problem.md` template
+### Canonical `problem.md` template (platform-style)
 
 ```
-# Q{N} — {Problem name} [R:H, O:{level}] (target {N} min)
+# Q{N} — {Problem name} [R:{level}, O:{level}] (target {N} min)
 
-## Scenario
-{1 paragraph: business context — who needs this, why, what's at stake.}
+## Description
+{Business context paragraph, then data-landscape paragraph(s), then computation
+ semantics WOVEN INTO PROSE: output grain, derived-column definitions,
+ inclusion/exclusion rules, boundary semantics. FINAL paragraph = deliverable
+ sentence: "將結果以 {format} 寫入 output/, 依 X 分區, 並依 A ASC 排序" —
+ or "列的順序不作要求(測試會排序後比對)". NO numbered solution steps.
+ NO function/algorithm hints. NO trailing 細節澄清 section.}
 
-### 資料來源
-{1 short paragraph intro, then 3-4 bullets — one per input source.
- Each bullet calls out the format AND any quirk (NULL convention,
- SCD2 property, file naming pattern, blacklist semantics, etc.).}
-
-### Rule 1 — {Name (e.g., Net amount)}
+### Rule 1 — {Name}   (R:Hard: ≥3 named rule subsections)
 {1 paragraph prose stating the rule.}
 
 範例：
@@ -191,28 +191,8 @@ Rationale: the user opens `problem.md` in a left pane and the notebook in a righ
 - {Contrast bullet — positive case}
 - {Optional pathological case}
 
-### Rule 2 — {Name}
-{Prose + bullet examples.}
-
-### Rule 3 — {Name}
-{Prose + bullet examples.}
-
-## Task
-
-Build 一個 pipeline：
-
-1. 讀 {input sources}
-2. 套用 Rule 1-3
-3. Aggregate 到 {grain} 層級：{output metrics}
-4. Join {lookup table} 補上 {enrichment columns}
-5. Sort + write {format} 到 output/
-
-**細節澄清:**
-
-- {How derived columns are computed — e.g., `settlement_month = trunc(date, 'month')`}
-- {Row membership rule — which (dim1, dim2) combos appear in output}
-- {Zero-count vs missing-row semantics — do zero-activity rows appear?}
-- {Any edge cases the rules DON'T cover}
+## Example(s)
+{LeetCode-style worked example: input excerpt → output rows → 說明.}
 
 ## Input
 
@@ -258,19 +238,27 @@ Schema:
 |---|---|
 | ... | ... |
 
-Sort: {key} ASC → {key} ASC → ...
+{Ordering contract restated: exact sort keys, or 「列順序不作要求」}
 
-Sample（前 N 列，供 schema 與 sort key 比對）：
+Sample（前 N 列，供 schema 比對）：
 
 | ... |
+
+## Constraints
+{Data size, value domains, format guarantees, and which boundary conditions
+ EXIST in data (duplicates / exact-boundary gaps / midnight-crossing /
+ orphan keys) — LeetCode-style disclosure.}
 ```
 
 **Key structural rules** (also in [SKILL.md](SKILL.md) Calibration section):
 
+- **Requirements woven into Description/Rules — never appended.** Ordering, return format, partitioning, derived-column formulas all appear in the statement body. A separate 細節澄清 dump = the statement failed. (RETIRED 2026-07-05: the `## Task` numbered-steps + 細節澄清 sections — Task steps leaked the solution recipe.)
+- **The deliverable is a sentence, not a recipe.** Final Description paragraph states WHAT to produce and WHERE to write. Never name functions or algorithm steps (`to_date`, "GroupBy → count", "lag → cumsum").
+- **Ordering contract explicit and verifiable.** Exact order → single sorted file, test compares write order strictly. Otherwise 「順序不作要求」 → test re-sorts. Never demand a sort the test can't physically verify (global order inside a partitioned dataset is not a real contract).
+- **No off-topic terminology** — don't mention concepts from sibling problems (e.g., "session" inside a plain counting problem).
 - Examples are **bullets, not prose-embedded** — easier to parse individually; reading load comes from quantity + cross-referencing.
 - **Each input source must include sample content**, not just schema. Parquet → logical-view table. CSV/JSONL/TXT → raw text in fenced block.
 - Sample IDs cross-reference scenario rule examples (e.g., if Rule 1 mentions `O8803 / refund_amount=NULL`, refunds.json sample must contain that row).
-- **Explicit `## Task` section is MANDATORY.** Scenario + rules describe the *world*; Task describes what to *build*. Must include pipeline steps + derived-column formulas + row-membership rule + zero vs missing semantics. Source: D5 Q1 shipped without it and user said "spec 沒明確要求要做的事".
 - **Every schema column MUST have an explicit type.** `col: string` / `col: timestamp` / `col: double`, never bare `col1, col2, col3`. Implicit types leak decisions to the reader (e.g., `payment_ts` could be timestamp or date).
 - **Money columns MUST use `decimal(p, 2)` OR spec must state explicit rounding.** `DoubleType` + `sum + ==` on currency silently misclassifies via IEEE 754 accumulator drift. If your canonical solution does any equality/inequality comparison on aggregated money, commit to precision handling in the spec. Source: D5 Q1 shipped with `DoubleType` amounts and `matched: paid_total == invoice_amount` — invoice $2508.06 got misclassified as overpaid because the sum drifted to `2508.0600000000004`.
 - **No decoy listing, no Pre-Submit Ritual** in the notebook markdown — they go to Notion. Decoys still exist physically in `input/`.

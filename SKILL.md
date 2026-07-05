@@ -205,6 +205,18 @@ Empirically, almost all design bugs would have been caught by running the canoni
 
 **Rule:** test design is data + assertion. If you write the assertion without measuring against the data, you're guessing. Stop guessing.
 
+### 🚨 Rule 0.5: Mutation-verify before publishing (automated "test must bite")
+
+Running the canonical solution proves the expected values are right; it does NOT prove the test catches wrong solutions. Before publishing, run a **mutation harness** (`_verify_problem.py` pattern, see `challenges/d06/`):
+
+1. Implement the canonical solution — its output defines `expected`.
+2. Implement **≥3 plausible wrong solutions** (mutations) — one per required step / trap: skip-the-filter, wrong comparison operator (`>=` vs `>`), wrong join type, missing sort, dedup-when-you-shouldn't, hardcoded config, wrong date anchor, misuse of read options.
+3. Assert every mutation's output **differs** from canonical (or raises). A mutation with identical output = the test data does not bite that failure mode → **redesign the data**, then re-run.
+
+Empirically this catches gaps that survive all manual checks: on first run against D6 it found (a) no duplicate timestamps existed, so dedup-style wrong answers passed; (b) no exactly-30-minute gap existed, so `>=` vs `>` was indistinguishable. Humans walked past both.
+
+Publish only when the harness prints all-caught.
+
 ### ☑ Check 1: Test bites every required step
 
 For each step in the canonical solution, ask: **"If the user skips this step, does ANY assert fail?"**
@@ -383,45 +395,40 @@ Anchor: a Hard problem produces substantial reading load through *content volume
 
 This mimics LeetCode's split-pane UX. In JupyterLab or VSCode: split editor, `problem.md` on the left rendered as markdown, notebook on the right. No scrolling back and forth inside the notebook to re-read the spec.
 
-**Canonical `problem.md` template for R:Hard:**
+**Canonical `problem.md` template (platform-style, applies to ALL difficulties; R:Hard adds more rule subsections):**
 
 ```
-# QK — {Problem name} [R:H, O:{level}] (target {N} min)
+# QK — {Problem name} [R:{level}, O:{level}] (target {N} min)
 
-## Scenario
-[1 paragraph: business context]
+## Description
+[Business context paragraph, then data-landscape paragraph(s), then computation
+ semantics WOVEN INTO PROSE: output grain, derived-column definitions,
+ inclusion/exclusion rules, boundary semantics (e.g., "恰好 30 分鐘屬同一
+ session"). The FINAL paragraph is the deliverable sentence:
+ "將結果以 {format} 寫入 output/, 依 X 分區, 並依 A ASC、B ASC 排序"
+ — or "列的順序不作要求(測試會排序後比對)".]
 
-### 資料來源
-[Intro + 3-4 source bullets, each calling out a quirk (NULL convention,
- SCD2, multi-file pattern, blacklist semantics, etc.)]
+### Rule 1 — {name}   (R:Hard: ≥3 named rule subsections)
+[Prose statement + 3-4 bullet examples incl. edge cases]
 
-### Rule 1 — {name}
-[Prose statement of the rule.]
-範例:
-- {Concrete example with IDs and values}
-- {Edge case: NULL / boundary}
-- {Contrast: positive case}
-- {Optional pathological case}
-
-### Rule 2 — {name}
-[Prose + bullet examples.]
-
-### Rule 3 — {name}
-[Prose + bullet examples.]
-
-## Task
-[EXPLICIT 3-5 step pipeline description + 細節澄清 (derived-column formulas,
- row-membership rule, zero vs missing semantics, edge cases the rules don't
- cover). Never leave the ask implicit in scenario/rules.]
+## Example(s)
+[LeetCode-style worked example: input excerpt → output rows → 說明.]
 
 ## Input
 [Folder path + per-source schema (EVERY column with explicit type) + per-source
  sample content block. Parquet: logical-view table. CSV/JSONL/TXT: raw text
- in fenced block. Sample IDs cross-reference scenario rule examples.]
+ in fenced block. Sample IDs cross-reference rule examples.]
 
 ## Output
-[Folder path + format + schema + sort + sample output rows.]
+[Folder path + format + schema table + ordering contract restated + sample rows.]
+
+## Constraints
+[Data size, value domains, format guarantees, and which boundary conditions
+ EXIST in the data (duplicates, exact-boundary gaps, midnight-crossing,
+ orphan keys) — LeetCode-style disclosure. Perf expectations if relevant.]
 ```
+
+**RETIRED as of 2026-07-05:** the separate `## Task` numbered-steps section and the trailing `**細節澄清**` list. Both violated platform conventions — Task steps leaked the solution recipe (e.g., "GroupBy X → count", "lag → cumsum"), and 細節澄清 meant the problem statement was incomplete without a patch section. Every requirement now lives in Description/Rules/Output where the reader parses it out themselves.
 
 **Canonical notebook cell-0 pointer:**
 
@@ -442,10 +449,13 @@ This mimics LeetCode's split-pane UX. In JupyterLab or VSCode: split editor, `pr
 Cells 1-3: setup / solution scaffold / tests-DO-NOT-MODIFY. All spec content stays in `problem.md`.
 
 **Key structural rules:**
+- **Requirements are woven into Description/Rules — never appended.** Ordering, return format, partitioning, derived-column formulas, inclusion/exclusion semantics all appear where the reader naturally encounters them. A separate "clarifications" dump means the statement failed.
+- **The deliverable is a sentence, not a recipe.** State WHAT to produce and WHERE to write it. Never enumerate solution steps or name functions/algorithms (`to_date`, "GroupBy then count", "lag → cumsum") — deriving the approach IS the exam.
+- **Ordering contract must be explicit and verifiable.** Either the description demands an exact order (single sorted file; test compares write order strictly) or says 「順序不作要求」 (test re-sorts before comparing). Never demand a sort the test cannot physically verify (e.g., global order inside a partitioned dataset).
+- **No off-topic terminology.** Don't mention concepts from other problems (e.g., "session" in a plain counting problem) — it misleads readers into over-engineering.
 - Examples are **bullets, not prose-embedded** — easier to parse individually; reading load comes from quantity + cross-referencing.
 - Each input source MUST have sample content (not just schema). See [Input Convention](#input-convention-folder-based-with-decoys) and [mock-exam-guide.md](mock-exam-guide.md) Rule 3.
 - Sample IDs in inputs cross-reference scenario rule examples (e.g., if Rule 1 mentions `O8803 / refund_amount=NULL`, refunds.json sample must include that row).
-- **Explicit `## Task` section is MANDATORY.** Scenario + rules describe the *world*; Task describes what to *build*. Must include pipeline steps + derived-column formulas + row-membership rule + zero vs missing semantics.
 - **Every schema column MUST have an explicit type.** `col: string` / `col: timestamp` / `col: double`, never bare `col1, col2, col3`. Implicit types leak decisions to the reader (e.g., `payment_ts` — timestamp or date?).
 - **Money columns MUST use `decimal(p, 2)` OR the spec must state an explicit rounding rule.** `DoubleType` + `sum + ==` silently misclassifies via IEEE 754 accumulator drift (e.g., `$2508.06` summed once → `2508.0600000000004` → false negative on equality). Never leave precision handling silent when currency comparisons are involved.
 - **No decoy listing, no Pre-Submit Ritual** in the notebook markdown. Those go to the paired Notion prep/retro page. The notebook is the assessment-realistic surface; decoys still exist physically in `input/` for the user to discover.
