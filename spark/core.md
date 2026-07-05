@@ -162,6 +162,7 @@ In modern Spark you almost never touch RDDs directly. If asked: `df.rdd` gives t
 6. **Pivot** — `groupBy().pivot().agg()` + fillna(0) (above)
 7. **Read messy data** — explicit schema; PERMISSIVE/_corrupt_record → [io-formats.md](io-formats.md)
 8. **Nested JSON flattening** — from_json / explode / higher-order fns → [nested-udf.md](nested-udf.md)
+9. **Verbal round: batch vs streaming, exactly-once, late data** — concepts, not code → [batch-streaming-concepts.md](batch-streaming-concepts.md)
 
 ## Common Pitfalls
 

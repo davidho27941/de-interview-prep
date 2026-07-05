@@ -774,7 +774,7 @@ When working on Spark problems:
 - Push toward `F.col` / `F.when` / `F.coalesce` instead of `.withColumn` + Python conditional
 - Senior signals to coach toward: explicit schemas, broadcast for small-side joins, knowing when to `cache`, awareness of partition skew
 
-See the [spark/](spark/) reference folder for the full treatment (core, io-formats, joins, window-sessionization, null-money-dates, nested-udf, performance).
+See the [spark/](spark/) reference folder for the full treatment (core, io-formats, joins, window-sessionization, null-money-dates, nested-udf, performance, batch-streaming-concepts).
 
 ### 7. Fatigue Management
 
@@ -795,6 +795,7 @@ When detected: suggest a break (walk, rest). Performance typically improves dram
 - [spark/null-money-dates.md](spark/null-money-dates.md) — NULL reflexes, DecimalType money, date/time toolbox, casts & ANSI mode
 - [spark/nested-udf.md](spark/nested-udf.md) — ArrayType/StructType/MapType, explode, higher-order functions, UDF vs built-in, pandas_udf
 - [spark/performance.md](spark/performance.md) — cache, shuffle partitions, AQE, reading explain(), skew mitigation
+- [spark/batch-streaming-concepts.md](spark/batch-streaming-concepts.md) — verbal-round concepts: delivery semantics, watermarks/late data, Structured Streaming mental model, Trigger.AvailableNow, Lambda/Kappa, CDC
 - [python-de-toolbox.md](python-de-toolbox.md) — DE-specific Python reflexes (regex, pathlib, datetime, JSON, encoding, Collections)
 - [debug-checklist.md](debug-checklist.md) — Common bug patterns in pipelines, how to design debug problems
 - [mock-exam-guide.md](mock-exam-guide.md) — Exam structure and timing
