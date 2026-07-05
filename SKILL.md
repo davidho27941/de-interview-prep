@@ -376,9 +376,18 @@ Anchor: a Hard problem produces substantial reading load through *content volume
 | **中等 Medium** | ~3 min | 1-2 paragraphs of context + a few rules. Some business framing to internalize. Sample I/O shows edge cases. |
 | **困難 Hard** | ~5-7 min | Scenario paragraph + **≥3 named business rules**, each with its own prose + 3-4 bullet examples (including edge cases). Multiple input sources, each with both schema AND sample content. Reader must cross-reference rule examples with input sample data to build a mental table before coding. |
 
-**Canonical R:Hard notebook template:**
+**Two-file structure (LeetCode-style split view):**
+
+- `problem.md` — the full problem statement (scenario + rules + Task + Input + Output). Reader opens this in a left pane.
+- `qK.ipynb` — the notebook. Cell-0 is a **short pointer** (title + calibration + target time + IO paths + focus tag). Cells 1-3 are setup / solution / tests.
+
+This mimics LeetCode's split-pane UX. In JupyterLab or VSCode: split editor, `problem.md` on the left rendered as markdown, notebook on the right. No scrolling back and forth inside the notebook to re-read the spec.
+
+**Canonical `problem.md` template for R:Hard:**
 
 ```
+# QK — {Problem name} [R:H, O:{level}] (target {N} min)
+
 ## Scenario
 [1 paragraph: business context]
 
@@ -413,6 +422,24 @@ Anchor: a Hard problem produces substantial reading load through *content volume
 ## Output
 [Folder path + format + schema + sort + sample output rows.]
 ```
+
+**Canonical notebook cell-0 pointer:**
+
+```
+# QK — {Problem name}
+
+📖 **Problem:** `problem.md`
+
+| | |
+|---|---|
+| Calibration | `[R:H, O:{level}]` |
+| Target time | {N} min |
+| Focus | {pattern being drilled — e.g., sessionization, top-N per group} |
+| Input | `input/...` (list files/subfolders) |
+| Output | `output/` (Parquet, partitioned by {key}) |
+```
+
+Cells 1-3: setup / solution scaffold / tests-DO-NOT-MODIFY. All spec content stays in `problem.md`.
 
 **Key structural rules:**
 - Examples are **bullets, not prose-embedded** — easier to parse individually; reading load comes from quantity + cross-referencing.

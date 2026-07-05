@@ -160,7 +160,16 @@ The notebook problem markdown is the **assessment-realistic surface**. The paire
 |   | Completion record (time, passed, mistake, takeaway) |
 |   | Calibration tags + scoring |
 
-### Canonical R:Hard Python / PySpark notebook template
+### Canonical two-file structure (LeetCode-style split view)
+
+Each problem lives as TWO files in its per-Q folder:
+
+- `problem.md` — full problem statement (below template)
+- `qK.ipynb` — short pointer cell + setup + solution + tests
+
+Rationale: the user opens `problem.md` in a left pane and the notebook in a right pane, so re-reading the spec while coding is instant (no scrolling inside the notebook).
+
+### Canonical R:Hard `problem.md` template
 
 ```
 # Q{N} — {Problem name} [R:H, O:{level}] (target {N} min)
@@ -266,9 +275,27 @@ Sample（前 N 列，供 schema 與 sort key 比對）：
 - **Money columns MUST use `decimal(p, 2)` OR spec must state explicit rounding.** `DoubleType` + `sum + ==` on currency silently misclassifies via IEEE 754 accumulator drift. If your canonical solution does any equality/inequality comparison on aggregated money, commit to precision handling in the spec. Source: D5 Q1 shipped with `DoubleType` amounts and `matched: paid_total == invoice_amount` — invoice $2508.06 got misclassified as overpaid because the sum drifted to `2508.0600000000004`.
 - **No decoy listing, no Pre-Submit Ritual** in the notebook markdown — they go to Notion. Decoys still exist physically in `input/`.
 
+### Canonical notebook cell-0 pointer (LeetCode-style split)
+
+```
+# QK — {Problem name}
+
+📖 **Problem:** `problem.md`
+
+| | |
+|---|---|
+| Calibration | `[R:H, O:{level}]` |
+| Target time | {N} min |
+| Focus | {pattern being drilled} |
+| Input | `input/...` (list files/subfolders) |
+| Output | `output/` (Parquet, partitioned by {key}) |
+```
+
+Cells 1-3: setup + solution scaffold + tests (DO NOT MODIFY). All spec content stays in `problem.md`.
+
 ### Canonical example
 
-The reference R:Hard problem worked through during 2026-06 calibration was "Q4 — Monthly Cohort Retention (1-month)" `[R:H, O:M]` target 20 min, with sources: orders parquet (multi-file), customers CSV, refunds JSONL, blacklist TXT. See the memory `feedback_hard_calibration_anchors.md` for the full rendered example.
+The reference R:Hard problem worked through during 2026-06 calibration was "Q4 — Monthly Cohort Retention (1-month)" `[R:H, O:M]` target 20 min, with sources: orders parquet (multi-file), customers CSV, refunds JSONL, blacklist TXT. See the memory `feedback_hard_calibration_anchors.md` for the full rendered example. D5 Q1 (Merchant Payout Discrepancy) demonstrates the two-file split — see `challenges/d05/q1/{problem.md, q1.ipynb}`.
 
 ## Time Management Strategy
 
