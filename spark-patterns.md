@@ -92,6 +92,24 @@ df.groupBy("country").agg(
 
 **Null behavior:** `F.count("col")` ignores nulls; `F.count("*")` counts all rows. `F.sum`/`F.avg` ignore nulls. `F.countDistinct` ignores nulls.
 
+**Conditional counting** (one groupBy, many filtered counts — the SQL `SUM(CASE WHEN ...)` idiom):
+
+```python
+df.groupBy("merchant_id").agg(
+    F.sum(F.when(F.col("status") == "matched",  1).otherwise(0)).alias("matched_count"),
+    F.sum(F.when(F.col("status") == "unpaid",   1).otherwise(0)).alias("unpaid_count"),
+)
+# 等價: F.count(F.when(cond, 1)) — count 忽略 NULL, when 無 otherwise 時不符即 NULL
+```
+
+**Pivot 後補零** — `pivot` 產生的格子沒資料是 NULL 不是 0，counting 場景幾乎都要接 `fillna`:
+
+```python
+df.groupBy("merchant_id").pivot("status", ["matched", "unpaid"]).count() \
+  .fillna(0, subset=["matched", "unpaid"])
+# 給 pivot 明確的值清單: 少一次全表掃描, 且缺席類別仍會成為欄位
+```
+
 ## File Formats Deep Dive
 
 ### Trade-off 對照
@@ -178,8 +196,29 @@ df.write.option('mergeSchema', 'true').mode('append').parquet('out/path')
 
 - **CSV 跟 `header=True` 預設 schema 全 String**，需要 `inferSchema=True` 或顯式 schema
 - **JSON 時間欄位**用 `TimestampType()` 而不是 string，否則排序時是 lexical sort
+- **JSONL 千萬別開 `multiLine`** — `multiLine=True` 是給「整檔一個 JSON 物件」用的；對 JSONL 開了它，每個檔會被當成一個壞掉的 JSON，permissive 模式產出每檔一列全 NULL。症狀：count 等於檔案數、欄位全 NULL、`isin` 過濾抓不到任何東西
 - **Parquet 寫 Spark 跟讀 Spark 版本相容性** — 通常 ok，但跨大版本要驗
 - **Decimal precision** 在 CSV → Parquet 轉換時可能掉精度，金融用要顯式 schema
+
+### Path 與 reader API 陷阱
+
+```python
+# json/csv/text 接受 str、list、甚至 RDD[str]
+spark.read.json(["a.jsonl", "b.jsonl"])          # OK
+
+# parquet/orc 是 varargs — 傳 list 會炸:
+spark.read.parquet(files)                         # ClassCastException: ArrayList → String
+spark.read.parquet(*files)                        # OK (unpack)
+
+# 通用解法: 兩邊都直接吃 glob string, 別自己先 glob 成 list
+spark.read.parquet("input/invoices/*.parquet")
+spark.read.json("input/events/events-*.jsonl")
+```
+
+- **用「精確 extension」的 glob 過濾雜檔** — 資料夾常混著 `.bak`、`_SUCCESS`、`.DS_Store`、`README.md`。`*.parquet` / `events-*.jsonl` 這種 pattern 天然排除它們；`spark.read.parquet("dir/")` 整目錄讀會全吞。
+- **`F.input_file_name()`** 可以在讀入後追查每列來自哪個檔 — debug 雜檔混入、或需要以檔名資訊過濾時用。
+- **Glob path 會觸發一條無害 WARN**：`FileStreamSink ... FileNotFoundException` — Spark 讀檔前先檢查該路徑是否為 streaming sink 的 metadata 目錄，glob 不是真實路徑所以拋錯再 fallback。純 log 噪音，結果正確；嫌吵就 `setLogLevel('ERROR')`。
+- **檔名不等於資料內容** — 每日檔 `events-2026-06-24.jsonl` 不保證只含當日事件（上游 spillover 很常見）。日期永遠從欄位推，不從檔名推。
 
 ---
 
@@ -305,6 +344,50 @@ df.withColumn("tier", F.when(F.col("amount") > 1000, "gold")
 - Any join — did unmatched rows turn into nulls that propagate into later math?
 - Any column expression doing arithmetic — wrap with `F.coalesce(..., F.lit(0))` if a null is meaningful as zero.
 
+## Money Arithmetic (DecimalType — make it reflexive)
+
+IEEE 754 doubles cannot represent most 2-decimal amounts exactly. Individually the error is invisible; **summed, it surfaces**: a `sum()` over amounts totalling $2508.06 can return `2508.0600000000004`, and a `paid_total == invoice_amount` comparison then misclassifies a perfectly matched invoice. No exception, no warning — just a wrong label.
+
+```python
+from pyspark.sql.types import DecimalType
+
+MONEY = DecimalType(12, 2)   # 12 total digits, 2 after the point
+
+# JSON/CSV: force Decimal at read time (inferSchema gives you double)
+schema = StructType([
+    StructField("invoice_id", StringType()),
+    StructField("amount",     MONEY),
+])
+
+# Parquet: whatever was written; check with printSchema() — don't assume
+
+# Zero literals must be typed to match, or the comparison type-promotes oddly:
+F.coalesce(F.col("paid_total"), F.lit(0).cast(MONEY))
+
+# Explicit rounding — only if the pipeline is stuck with doubles:
+F.round(F.col("amount"), 2)
+```
+
+**Reflex:** money that flows through `sum` into an equality/inequality → `DecimalType` end-to-end. If the source is genuinely double (messy API), round to a declared precision *before* every comparison, and say so in comments. On the Python side the same rule holds: `decimal.Decimal(str(x))`, never `Decimal(float_val)` (which re-imports the float noise).
+
+## Date/Time Toolbox
+
+```python
+F.to_date("event_ts")                       # timestamp → date (取日期部分)
+F.trunc("invoice_date", "month")            # date → 該月第一天 (月報 grain 的標配)
+F.date_trunc("hour", "event_ts")            # timestamp → 截到小時/分 (回傳 timestamp)
+F.to_timestamp("ts_str", "yyyy-MM-dd HH:mm:ss")   # string → timestamp (格式明示)
+
+# Duration in seconds — the standard idiom:
+F.unix_timestamp("end_ts") - F.unix_timestamp("start_ts")
+
+F.date_add("d", 7)  /  F.date_sub("d", 7)   # 平移天數
+F.months_between("d1", "d2")                # 月差 (float — cohort age 記得 floor/cast)
+F.year("d"), F.month("d"), F.dayofweek("d") # 拆欄位
+```
+
+**易混:** `trunc(col, "month")` 吃 date 回 date(月初);`date_trunc("month", col)` 吃 timestamp 回 timestamp。月度 grain 報表用前者。**Duration 不要用 `datediff`**(它只算「跨了幾個日曆日」,同日兩事件回 0)— 秒數用 `unix_timestamp` 相減。
+
 ## Joins
 
 ```python
@@ -325,6 +408,35 @@ df_large.join(F.broadcast(df_small), on="user_id", how="left")
 ```
 
 When to broadcast: small side is < ~10MB. Senior signal: knowing when shuffle cost dominates and broadcast avoids it.
+
+### The aggregate → LEFT join → classify shape (reconciliation problems)
+
+"Sum the child records per parent, compare against the parent's own amount, classify" — invoices vs payments, orders vs shipments, plans vs actuals. The shape:
+
+```python
+paid = payments.groupBy("invoice_id").agg(F.sum("amount").alias("paid_total"))
+
+classified = (invoices
+    .join(paid, "invoice_id", "left")                      # LEFT — parents with no children must survive
+    .withColumn("paid_total",                              # join-produced NULL → 0 BEFORE comparing
+        F.coalesce(F.col("paid_total"), F.lit(0).cast("decimal(12,2)")))
+    .withColumn("status",
+        F.when(F.col("paid_total") == F.col("amount"), "matched")
+         .when(F.col("paid_total") >  F.col("amount"), "overpaid")
+         .when(F.col("paid_total") >  0,               "underpaid")
+         .when(F.col("paid_total") == 0,               "unpaid")
+         .otherwise("unclassified"))                       # defensive — should never fire
+)
+```
+
+**The three-valued-logic trap this guards against:** an INNER join silently drops no-child parents; a LEFT join without the `coalesce` leaves `paid_total = NULL`, and NULL fails EVERY `when` condition — the row gets a NULL status and silently vanishes from any `status == "x"` aggregation. Two separate mistakes, same symptom: missing rows.
+
+Three disciplines, always together:
+1. **LEFT join** when zero-child parents are part of the answer.
+2. **`coalesce` to a typed zero** immediately after the join (`F.lit(0).cast(...)` matching the column type — mixing int literals with Decimal columns invites type surprises).
+3. **`.otherwise("unclassified")`** at the end of every classification chain — a visible "should not happen" beats a silent NULL. If it appears in output, you missed a case.
+
+One more naming discipline: the label strings produced here are compared *as strings* downstream (`F.when(status == "overpaid", ...)`). A one-character mismatch (`over_paid` vs `overpaid`) produces silent zeros, not an error. Define the labels once, reuse the constant.
 
 ## Common Subtle Gotchas
 
@@ -470,6 +582,12 @@ result.write.mode("append").csv("out/path", header=True)
 ```
 
 `mode` options: `"overwrite"`, `"append"`, `"ignore"`, `"error"` (default).
+
+**排序契約與檔案佈局:**
+
+- 需要「輸出照指定順序」→ `orderBy(...)` 後 `coalesce(1)` 寫**單一檔** — 單檔讀回會保留列順序,契約才驗得了
+- Partitioned 輸出**沒有全域列順序**可言 — 讀回順序由 partition 目錄與檔案切分決定。spec 若寫 partitioned + sorted,那個 sort 是無法驗證的假契約
+- `orderBy` 之後再 `repartition` 會毀掉排序(shuffle);順序永遠是 write 前最後一步
 
 ## DataFrame ↔ RDD
 
@@ -641,19 +759,44 @@ df.groupBy('user').agg(
 
 ## Sessionization Template (worth memorizing)
 
+**Step 1 — tag events with a session id** (`lag → gap → cumulative sum`):
+
 ```python
 w = Window.partitionBy("user_id").orderBy("event_ts")
-GAP_MIN = 30
+GAP_SEC = 30 * 60
 
-sessions = (df
+tagged = (df
     .withColumn("prev_ts", F.lag("event_ts").over(w))
-    .withColumn("gap_min", (F.col("event_ts").cast("long") - F.col("prev_ts").cast("long")) / 60)
-    .withColumn("new_session", (F.col("gap_min").isNull() | (F.col("gap_min") > GAP_MIN)).cast("int"))
-    .withColumn("session_id", F.sum("new_session").over(w))
+    .withColumn("gap_sec", F.unix_timestamp("event_ts") - F.unix_timestamp("prev_ts"))
+    .withColumn("new_session", (F.col("gap_sec").isNull() | (F.col("gap_sec") > GAP_SEC)).cast("int"))
+    .withColumn("session_id",
+        F.sum("new_session").over(w.rowsBetween(Window.unboundedPreceding, Window.currentRow)))
 )
 ```
 
-This pattern (lag → gap detector → cumulative sum as session id) shows up in many DE assessments. It's the Spark version of the gaps-and-islands SQL pattern.
+**Step 2 — aggregate to one row per session** (the usual deliverable):
+
+```python
+sessions = (tagged
+    .groupBy("user_id", "session_id")
+    .agg(F.min("event_ts").alias("start_ts"),
+         F.max("event_ts").alias("end_ts"),
+         F.count("*").alias("event_count"))
+    .withColumn("duration_sec",
+        F.unix_timestamp("end_ts") - F.unix_timestamp("start_ts"))
+)
+```
+
+This is the Spark version of the gaps-and-islands SQL pattern. It shows up in many DE assessments — memorize the shape, then adapt.
+
+**Traps in this template:**
+
+- **Boundary operator ↔ spec verb.** "more than 30 minutes" → `>`; "30 minutes or more" → `>=`. Data often contains an exactly-at-boundary gap specifically to catch the wrong operator.
+- **First event per user:** `lag` returns NULL → the `isNull()` term makes it a new session, and the cumulative sum then starts at **1**. If the spec wants 0-based ids, subtract 1 explicitly.
+- **Sessions can cross midnight.** Derive a session's date from `start_ts` (`F.to_date(F.min("event_ts"))`), never from the per-event date or the source filename.
+- **Duplicate timestamps** (client double-fire) are ties in the window order — gap is 0, same session, both events count. Don't dedup unless the spec says so.
+- **Single-event sessions** have `duration_sec = 0`, not NULL.
+- The cumulative sum needs the explicit `rowsBetween(unboundedPreceding, currentRow)` frame if you build the window separately from the ordered one.
 
 ## Common Pitfalls
 
