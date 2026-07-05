@@ -18,7 +18,7 @@ Typical DE coding assessments follow this structure (adjust based on the target 
 - **Q5**: Debug / Log analysis / PySpark task (find and fix bugs OR write a PySpark transform)
 - **Time**: 60-90 minutes total
 
-For interviews requiring it, **PySpark** may replace or augment Q4/Q5. See [spark-patterns.md](spark-patterns.md).
+For interviews requiring it, **PySpark** may replace or augment Q4/Q5. See the [spark/](spark/) reference folder.
 
 ### What this coach deprioritizes
 
@@ -774,7 +774,7 @@ When working on Spark problems:
 - Push toward `F.col` / `F.when` / `F.coalesce` instead of `.withColumn` + Python conditional
 - Senior signals to coach toward: explicit schemas, broadcast for small-side joins, knowing when to `cache`, awareness of partition skew
 
-See [spark-patterns.md](spark-patterns.md) for the full reference.
+See the [spark/](spark/) reference folder for the full treatment (core, io-formats, joins, window-sessionization, null-money-dates, nested-udf, performance).
 
 ### 7. Fatigue Management
 
@@ -788,7 +788,13 @@ When detected: suggest a break (walk, rest). Performance typically improves dram
 ## Reference Files
 
 - [patterns.md](patterns.md) — SQL breadth (window functions, recursive CTE, gap-and-island, scalar subquery, NULL reflex), Python algorithmic patterns kept for DE relevance (Sliding Window, Prefix Sum), Scenario Templates (log pipeline, semantic validation, multi-step transform)
-- [spark-patterns.md](spark-patterns.md) — PySpark DataFrame API, window functions, performance basics, common pitfalls
+- [spark/core.md](spark/core.md) — mental model, transforms, aggregations, SQL bridge, output contracts, pitfalls, question-shape routing index
+- [spark/io-formats.md](spark/io-formats.md) — file formats, JSON/JSONL traps, parquet partitioning, malformed rows, path/reader API traps, small-files
+- [spark/joins.md](spark/joins.md) — join types, broadcast, aggregate→LEFT→classify reconciliation shape, SCD2 point-in-time join, unionByName
+- [spark/window-sessionization.md](spark/window-sessionization.md) — window functions, rank trio, deterministic dedup, collect_list ordering, sessionization template
+- [spark/null-money-dates.md](spark/null-money-dates.md) — NULL reflexes, DecimalType money, date/time toolbox, casts & ANSI mode
+- [spark/nested-udf.md](spark/nested-udf.md) — ArrayType/StructType/MapType, explode, higher-order functions, UDF vs built-in, pandas_udf
+- [spark/performance.md](spark/performance.md) — cache, shuffle partitions, AQE, reading explain(), skew mitigation
 - [python-de-toolbox.md](python-de-toolbox.md) — DE-specific Python reflexes (regex, pathlib, datetime, JSON, encoding, Collections)
 - [debug-checklist.md](debug-checklist.md) — Common bug patterns in pipelines, how to design debug problems
 - [mock-exam-guide.md](mock-exam-guide.md) — Exam structure and timing

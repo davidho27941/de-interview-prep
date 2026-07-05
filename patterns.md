@@ -2,7 +2,7 @@
 
 DE-relevant patterns only. Pure-algorithm content (3Sum, Two Pointers, Binary Search templates) has been deprioritized — these rarely match the DE assessment format. Focus is SQL breadth, Python data-processing reflexes, and scenario-style problem templates.
 
-For Spark/PySpark, see [spark-patterns.md](spark-patterns.md).
+For Spark/PySpark, see the [spark/](spark/) reference folder.
 For Python DE-specific reflexes (regex, pathlib, datetime, JSON), see [python-de-toolbox.md](python-de-toolbox.md).
 
 ---
@@ -358,7 +358,7 @@ def infer_property_type(desc: str) -> str:
 
 **Pattern:** sort by user + ts → compute gap to previous event → mark "new session" when gap > threshold → cumulative sum of new-session flags = session id.
 
-See [spark-patterns.md](spark-patterns.md) for the Spark version. In pandas: `df.sort_values([uid, ts]).groupby(uid)[ts].diff().gt(threshold).cumsum()`.
+See [spark/window-sessionization.md](spark/window-sessionization.md) for the Spark version. In pandas: `df.sort_values([uid, ts]).groupby(uid)[ts].diff().gt(threshold).cumsum()`.
 
 ---
 
