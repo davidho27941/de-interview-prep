@@ -339,6 +339,13 @@ The 4 Pre-Submit questions applied to TEST DESIGN (not just solution):
 - Rule: decide the final problem before writing. If during writing you realize the original frame doesn't work, rewrite from scratch, don't leave both versions.
 - If the problem GENUINELY has multiple valid readings (ambiguity audit, Check 4), present them in a structured way (A/B/C readings) NOT as inline iteration.
 
+**Sub-check 8c: Requirements must be motivated by realistic premises**
+
+- Don't invent a contrived business story to force an implementation choice. Failure example: "the business team edits this config file directly, so your solution MUST read it dynamically — hardcoding is forbidden." In a real org, a config whose change alters report semantics goes through review + redeploy anyway, so a reviewed constant in code is a defensible (often better) choice — the mandate teaches the wrong engineering judgment and collapses under one design-review question.
+- To genuinely test parameterization, make the parameter **part of the input data**: a config/dimension file among the run's input datasets, or a multi-tenant framing (many products, each definition arrives as data) where hardcoding is self-evidently absurd. The requirement then emerges from the scenario instead of being decreed.
+- Litmus test: if a candidate can argue "that premise wouldn't survive in a real org, therefore the requirement is wrong," the problem loses authority. Fix the premise, not the candidate.
+- This defect class is invisible to the mutation harness (Rule 0.5) — only a design review against production reality catches it.
+
 ### ☑ Check 9: Numeric precision commitment (money / measurement)
 
 If the canonical solution does any equality / inequality comparison on aggregated numeric fields (money, quantities, ratios, timestamps-as-numbers), the spec MUST commit to precision handling. Silence = broken test.
