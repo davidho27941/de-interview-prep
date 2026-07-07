@@ -24,6 +24,7 @@ For Python DE-specific reflexes (regex, pathlib, datetime, JSON), see [python-de
 | "compare each row to next/prev" | `LAG()` / `LEAD()` window function |
 | "diff vs second highest" | Scalar subquery: `value - (SELECT ... ORDER BY ... LIMIT 1 OFFSET 1)` |
 | "hierarchy / report-chain / tree" | `WITH RECURSIVE` CTE |
+| "match/standings table — one row, two participants" | `UNION ALL` both perspectives, then aggregate (see Standings pattern) |
 | "fill missing dates / generate series" | Recursive CTE for date generation, or LEFT JOIN against a date dimension |
 | "pivot / reshape rows to columns" | `SUM(CASE WHEN ... THEN value END)` — use NULL not 0 to preserve missing |
 | "find rows where range contains a value" | Range join: `JOIN ... ON v BETWEEN low AND high` |
@@ -165,6 +166,38 @@ FROM employee;
 ```
 
 **Trap:** if the subquery returns no rows, the result is NULL → wrap arithmetic with `COALESCE`.
+
+## Standings / Tournament Pattern
+
+A match table stores **one row per match with two participants** (`host_team, guest_team, host_goals, guest_goals`), but standings need **one row per team**. The signature move: explode each match into both teams' perspectives with `UNION ALL`, then aggregate.
+
+```sql
+WITH per_team AS (
+    SELECT host_team  AS team_id,
+           CASE WHEN host_goals > guest_goals THEN 3
+                WHEN host_goals = guest_goals THEN 1
+                ELSE 0 END AS points
+    FROM matches
+    UNION ALL
+    SELECT guest_team AS team_id,
+           CASE WHEN guest_goals > host_goals THEN 3
+                WHEN guest_goals = host_goals THEN 1
+                ELSE 0 END AS points
+    FROM matches
+)
+SELECT t.team_id, t.team_name, COALESCE(SUM(p.points), 0) AS num_points
+FROM teams t LEFT JOIN per_team p ON p.team_id = t.team_id
+GROUP BY t.team_id, t.team_name
+ORDER BY num_points DESC, t.team_id;    -- tiebreak per spec
+```
+
+**Traps:**
+- Teams that never played must still appear with 0 points → LEFT JOIN from the teams table + `COALESCE(SUM, 0)` — the show-zeros pattern again.
+- `UNION ALL`, never `UNION` — dedup would silently merge identical (team, points) rows from different matches.
+- Read the tiebreak clause carefully (points desc, then id asc is common — but specs vary: goal difference, name order).
+- Same family as "one dimension table plays two roles" (trips: client + driver) — there the move is joining the dimension twice with different aliases; here it's exploding the fact into two rows. Pick by which side has the duality.
+
+Reference drill: LeetCode 1212 (Team Scores in Football Tournament).
 
 ## Gap-and-Island
 
