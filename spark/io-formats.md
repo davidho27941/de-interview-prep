@@ -92,9 +92,15 @@ schema_with_corrupt = StructType([
     StructField("amount", DoubleType()),
     StructField("_corrupt_record", StringType()),   # raw text of bad rows lands in this column
 ])
-df = spark.read.schema(schema_with_corrupt).json("input/")
+df = spark.read.schema(schema_with_corrupt).json("input/").cache()   # cache is REQUIRED — see below
 bad = df.filter(F.col("_corrupt_record").isNotNull())   # isolate bad rows for reporting/landing
 ```
+
+**The `.cache()` is not optional.** `_corrupt_record` is populated as a *side effect of trying to parse the other columns*. A query that references only the corrupt column would let column pruning skip parsing entirely — a semantic contradiction — so Spark 3+ rejects it outright with `[UNSUPPORTED_FEATURE.QUERY_ONLY_CORRUPT_RECORD_COLUMN]`. Caching materializes the full parse first; subsequent queries hit the cache instead of the pruned reader.
+
+Two more traps on the same line:
+- NULL checks are `isNotNull()` / `isNull()` — never `!= "NULL"` (that compares against the *string* "NULL") and never `!= None` (three-valued logic: `NULL != x` is NULL, so the filter silently returns nothing).
+- The `_corrupt_record` field in your schema must be nullable (`True`).
 
 **Senior stance:** production ingest uses PERMISSIVE + `_corrupt_record` to route bad rows to a quarantine path, rather than DROPMALFORMED silently swallowing them — "how much was dropped, and what" must be answerable.
 
