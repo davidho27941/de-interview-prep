@@ -142,6 +142,22 @@ result.write.mode("append").csv("out/path", header=True)
 
 `mode` options: `"overwrite"`, `"append"`, `"ignore"`, `"error"` (default).
 
+**`overwrite` replaces the entire target DIRECTORY, not individual files.** Spark's mental model is "the path IS the dataset" — overwrite means *replace the old dataset at this path with the new one*, implemented as delete-directory-then-recreate. (File-level overwrite would be worse: a run writing 3 part-files over a previous run's 200 would leave 197 stale files mixed into the "new" dataset.) Consequences:
+
+- **Sidecar files sharing the output directory** (a `metrics.txt`, a quarantine count) get wiped along with everything else. Discipline: **Spark writes first — let it raze the directory — sidecars second.** And when reading back, use an extension-precise glob (`out/*.parquet`) so the sidecar doesn't break the parquet reader; the two rules are the same cohabitation contract seen from both sides.
+- **Partitioned overwrite has two modes, and the default bites:**
+
+```python
+# default (static): overwriting with ONLY June's data still razes the whole
+# output/ — including every other month's partitions
+df.write.mode("overwrite").partitionBy("month").parquet("out/")
+
+# dynamic: only the partitions present in the incoming data are replaced
+spark.conf.set("spark.sql.sources.partitionOverwriteMode", "dynamic")
+```
+
+Classic production incident: a daily job static-overwrites "today's partition" and silently deletes the entire history every night. Interview answer for "how do you safely re-run one day": dynamic partition overwrite, or a lakehouse table format's `replaceWhere` / MERGE.
+
 **Ordering contract and file layout:**
 
 - Need "output in a specified order" → `orderBy(...)` then `coalesce(1)` to write a **single file** — reading a single file back preserves row order, so the contract is actually verifiable
