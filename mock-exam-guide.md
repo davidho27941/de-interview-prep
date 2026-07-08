@@ -282,6 +282,8 @@ Sample (first N rows, for schema comparison):
 
 Cells 1-3: setup + solution scaffold + tests (DO NOT MODIFY). All spec content stays in `problem.md`.
 
+**Setup cell must match the declared toolchain.** A pure-Python problem gets NO Spark session — pre-loading a tool the problem forbids is an affordance that invites the violation, and tests verify outputs, not toolchains, so nothing will catch it. The environment is part of the assessment surface: provide exactly what the real platform would provide, nothing more.
+
 ### Canonical example
 
 Two reference shapes that exercise the full template:

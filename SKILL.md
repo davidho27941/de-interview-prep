@@ -468,6 +468,8 @@ This mimics LeetCode's split-pane UX. In JupyterLab or VSCode: split editor, `pr
 
 Cells 1-3: setup / solution scaffold / tests-DO-NOT-MODIFY. All spec content stays in `problem.md`.
 
+**Setup cell must match the declared toolchain.** A pure-Python problem gets NO Spark session — pre-loading a tool the problem forbids is an affordance that invites the violation, and tests verify outputs, not toolchains, so nothing will catch it. The environment is part of the assessment surface: provide exactly what the real platform would provide, nothing more.
+
 **Key structural rules:**
 - **Requirements are woven into Description/Rules — never appended.** Ordering, return format, partitioning, derived-column formulas, inclusion/exclusion semantics all appear where the reader naturally encounters them. A separate "clarifications" dump means the statement failed.
 - **The deliverable is a sentence, not a recipe.** State WHAT to produce and WHERE to write it. Never enumerate solution steps or name functions/algorithms (`to_date`, "GroupBy then count", "lag → cumsum") — deriving the approach IS the exam.
