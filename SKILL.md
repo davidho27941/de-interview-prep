@@ -217,6 +217,19 @@ Empirically this catches gaps that survive all manual checks: on its first run a
 
 Publish only when the harness prints all-caught.
 
+### 🚨 Rule 0.75: Adversarial spec review (fresh-eyes pass on the PROSE)
+
+Rule 0 and Rule 0.5 verify the data-and-test layer; **neither can see defects in the problem statement's wording** — and author blindness guarantees you won't either. Before publishing, have a reviewer with **no authoring context** (a fresh subagent given only the problem.md) attack the statement:
+
+1. **Counting-unit consistency** — does every output column name the unit that exists *after* the transforms? (A dedup rule followed by a `line_count` column is a contradiction — the unit became requests.)
+2. **Antecedent check** — every pronoun/reference ("that row", "its timestamp") must resolve unambiguously *even where rules interact* (which row's timestamp, after dedup merges rows across days?).
+3. **No negative implementation warnings** — "do not use X as the basis" telegraphs the planted trap. State the semantics and disclose the data property; the wrong approach must fall out, not be labeled.
+4. **Forcing constraints stated** — any design choice that looks arbitrary (a global count in a sidecar file, a fixed config in code) must carry the constraint that forces it, or it invites a justified "why?" that the statement can't answer.
+5. **Value domains** — stated when the output shape depends on them (pivot columns, zero-rows, fixed classification buckets); explicitly declared open when the logic must be value-agnostic.
+6. **Premise realism** (Sub-check 8c) — would the business story survive one design-review question from a senior?
+
+The reviewer's job is to find the question a careful candidate would be forced to ask mid-exam. Every such question found = a fix before publishing. Empirically this layer produced more escaped defects than the data layer once the mutation harness existed — the harness moved the bottleneck to the prose.
+
 ### ☑ Check 1: Test bites every required step
 
 For each step in the canonical solution, ask: **"If the user skips this step, does ANY assert fail?"**
