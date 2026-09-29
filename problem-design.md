@@ -33,7 +33,11 @@ Every input folder MUST include decoy files to test the user's file-filtering re
 | **O:Medium** | 2-3 | Wrong extension + backup file (.bak) + hidden |
 | **O:Hard** | 3-5 | All of medium + subdirectory + empty file + encoding edge case |
 
-Decoys are planted physically in `input/` and are NEVER listed in the problem statement — the user discovers them. Common decoys:
+Decoys are planted physically in `input/` and are NEVER listed in the problem statement — the user discovers them.
+
+**Decoy content rule — at least one decoy per problem must be format-valid.** A decoy holding `junk` only proves the solution survives garbage: a naive reader crashes loudly (which the user fixes by adding a try/except, not by fixing the glob) or the junk lands in a malformed-row counter. The decoy that trains the reflex is a stale backup or archive file whose rows parse cleanly and would CHANGE the output if read — extra counts, a different latest-record winner, an extra group. Its rows use keys or dates that appear in no target file, so a leak is attributable. Do not label them (`DECOY-001`) — the file name is the only tell.
+
+Common decoys:
 
 - `*.bak` / `*.tmp` — backup or temp files (must be excluded)
 - `README.md` / `NOTES.txt` — human-readable junk
@@ -147,16 +151,17 @@ Tests must catch what hidden test cases would catch — happy path, edge cases, 
 result = solve(sample_input)
 assert result == expected_happy, f"Happy path: expected {expected_happy}, got {result}"
 
-# 2. Empty input
-assert solve([]) == [] or solve([]) == 0  # decide per problem
+# 2. Empty input — commit to ONE expected value per problem; `a or b` accepts both and tests nothing
+assert run_on(empty_dir) == [], "Empty input must produce an empty result, not a crash"
 # 3. Single element / single row
 # 4. Boundary (first / last / single group)
 # 5. NULL / missing value handling
 # 6. Output sort key
 assert result == sorted(result, key=...), "Output not sorted by required key"
-# 7. For folder problems: file enumeration sanity
-files = sorted(Path('input/').glob('TARGET-*.ext'))
-assert len(files) == EXPECTED, f"Decoy leak — expected {EXPECTED}, got {len(files)}"
+# 7. For folder problems: decoy leak — assert on the solution's OUTPUT.
+#    Never glob inside the test and count files: that checks the test's own glob, not the solution.
+leaked = [r for r in result if r['order_id'] in DECOY_ONLY_IDS]   # ids that exist only in decoy files
+assert not leaked, f"Decoy leak — rows from non-target files reached the output: {leaked[:3]}"
 
 print("✓ DN-PX passed all checks")
 ```
@@ -166,6 +171,7 @@ print("✓ DN-PX passed all checks")
 - **Self-verification:** running the test cell is unambiguous — green text or red traceback. No back-and-forth needed.
 - **Iteration speed:** user edits solution cell, re-runs both cells, sees result immediately.
 - **Matches real exam format:** CodeSignal-style assessments give you sample tests up front + hidden tests behind. The user-visible assert cell mirrors the sample tests; the coach occasionally adds "stretch" asserts that mirror hidden tests.
+- **Decoy leak gets its own assert for the message, not the detection:** with a format-valid decoy the happy-path equality already fails on a leak; the dedicated assert just names the cause instead of showing a row diff.
 - **Catches Pre-Submit Ritual misses automatically:** the empty / NULL / boundary asserts ARE the Pre-Submit Ritual in code form.
 
 ### Coaching workflow
@@ -175,6 +181,7 @@ When creating a new problem:
 2. Solution cell starts as `def solve_pN(...): raise NotImplementedError("TODO")` — clearly unfinished
 3. Tests cell is COMPLETE — the user can run it immediately after writing the solution
 4. When the user reports back, ask them to share the test output. Green = pass, red = read the trace + ritual + edit solution.
+5. Once the attempt is reviewed, record it in the progress log ([SKILL.md](SKILL.md) §Progress Log).
 
 ### What to keep OUT of the notebook
 
@@ -203,7 +210,7 @@ Empirically, almost all design bugs would have been caught by running the canoni
 Running the canonical solution proves the expected values are right; it does NOT prove the test catches wrong solutions. Before publishing, run a **mutation harness** (a `_verify_problem.py` script alongside the problem):
 
 1. Implement the canonical solution — its output defines `expected`.
-2. Implement **≥3 plausible wrong solutions** (mutations) — one per required step / trap: skip-the-filter, wrong comparison operator (`>=` vs `>`), wrong join type, missing sort, dedup-when-you-shouldn't, hardcoded config, wrong date anchor, misuse of read options.
+2. Implement **≥3 plausible wrong solutions** (mutations) — one per required step / trap: skip-the-filter, wrong comparison operator (`>=` vs `>`), wrong join type, missing sort, dedup-when-you-shouldn't, hardcoded config, wrong date anchor, misuse of read options. **Folder problems always include the naive-enumeration mutation** (file filter replaced by `glob('*')` / `rglob('*')`); see Check 7.
 3. Assert every mutation's output **differs** from canonical (or raises). A mutation with identical output = the test data does not bite that failure mode → **redesign the data**, then re-run.
 
 Empirically this catches gaps that survive all manual checks: on its first run against a freshly designed problem set it found (a) no duplicate timestamps existed, so dedup-style wrong answers passed; (b) a "more than 30 minutes" rule had no exactly-30-minute gap in the data, so `>=` vs `>` was indistinguishable. Manual review had walked past both.
@@ -318,9 +325,9 @@ The 4 Pre-Submit questions (defined in [SKILL.md](SKILL.md)) applied to TEST DES
 
 ### ☑ Check 7: Decoy file alignment
 
-- Are decoys placed per Input Convention?
-- Do they actually penalize naive `glob('*')` / `iterdir()`?
-- Does the test catch decoy leak (assert on file count or detect sentinel content)?
+- Are decoys placed per Input Convention (count per O level, at least one format-valid)?
+- Does the mutation harness include a **naive-enumeration mutation** — the canonical solution with its file filter replaced by `glob('*')` / `rglob('*')` / `iterdir()` — and is it CAUGHT by a wrong output, not merely by a crash?
+- Does the test detect the leak from the solution's output? A test that globs the folder itself and asserts the file count verifies nothing about the solution.
 
 ### ☑ Check 8: Solving template alignment
 
@@ -386,7 +393,7 @@ When designing problem N:
 | 4 | Ambiguity audit | Where could reasonable people disagree? |
 | 5 | ID semantics | Business ID for dedup, or intentional teaching point? |
 | 6 | Edge cases (4Q ritual) | Empty / NULL aggregate / Join type / Boundary all tested? |
-| 7 | Decoy alignment | Naive glob would fail the test? |
+| 7 | Decoy alignment | Naive-enumeration mutation caught by wrong output (format-valid decoy present)? |
 | 8 | Template alignment | 4-stage mapping OK? Ritual in Notion + asserts, not in notebook? Extension (warm-up) included? |
 | 9 | Numeric precision | Money / aggregated numerics feed into ==? Decimal or explicit round in spec? |
 

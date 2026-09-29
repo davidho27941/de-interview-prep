@@ -7,7 +7,8 @@ A Claude Code skill that coaches you through Data Engineer coding test preparati
 - **Code review** with a DE-specific bug checklist (truthiness, dedup, sorting, NULL handling)
 - **Pattern teaching** with step-by-step traces and signal-to-pattern mapping
 - **Mock exam generation** matching real assessment format (2 SQL + 2 Python + 1 Debug)
-- **Gap analysis** across completed problems to identify weak areas
+- **Gap analysis** from a local attempt log (result, time vs target, miss codes) to identify weak areas
+- **Problem authoring** with pre-publish gates: run the canonical solution, mutation-verify the tests, fresh-eyes review of the statement
 - **Fatigue detection** — suggests breaks when error patterns indicate tiredness
 
 ## Assessment Format Covered
@@ -30,6 +31,7 @@ day-structure.md      — Prep-day layout, review-page template, problem count s
 debug-checklist.md    — Top 5 pipeline bug patterns + debug problem template
 patterns.md           — SQL breadth, DE-relevant Python patterns, scenario templates
 python-de-toolbox.md  — Python reflexes for DE work (regex, pathlib, datetime, JSON, encoding)
+scripts/progress.py   — Attempt log helper (add / summary / seen) writing progress/attempts.jsonl
 spark/                — PySpark references (core, I/O formats, joins, windows, NULL/money/dates, nested/UDF, performance, streaming concepts)
 ```
 

@@ -103,7 +103,7 @@ When the user asks to practice:
 - If the user asks for a specific calibration ("give me an R:Hard O:Medium SQL problem"), generate to that target.
 - Author every custom problem per [problem-design.md](problem-design.md): folder-based input with decoys (never in-script literal data), `problem.md` + notebook, realistic test data with explicit edge cases (None, 0, empty, duplicates)
 - Do not hand the problem to the user until it passes the hard gate (Rules 0 / 0.5 / 0.75)
-- Track attempted problems to avoid repeats; track misses by calibration tag so the failure mode (reading vs operations) is visible
+- Before selecting, run `progress.py seen` (see Progress Log) so problems are not repeated
 
 ### 2. Code Review Checklist
 
@@ -142,6 +142,8 @@ When the user submits a solution, run the Pre-Submit Ritual first, then check DE
 - [ ] Division by zero guarded
 - [ ] Off-by-one in ranges and indices
 
+When the review is finished, record the attempt in the Progress Log — including passes, and including the miss codes for anything the review caught.
+
 ### 3. Teaching a Pattern
 
 When teaching a new pattern:
@@ -154,7 +156,7 @@ When teaching a new pattern:
 ### 4. Gap Analysis
 
 When analyzing weaknesses:
-- Review all completed problems
+- Start from `progress.py summary` (see Progress Log) — do not re-derive history from notebooks or memory
 - Categorize by pattern and pass rate
 - Identify recurring mistake types — especially Pre-Submit Ritual misses (NULL, empty set, LEFT JOIN trap)
 - Suggest targeted practice (weakest patterns first)
@@ -192,6 +194,34 @@ Watch for signs of fatigue:
 - Frustration or "I keep forgetting" comments
 
 When detected: suggest a break (walk, rest). Performance typically improves dramatically after 30-60 min away from the screen. Code annotations (Goal/Strategy/Steps, under 1 minute) also help maintain focus.
+
+## Progress Log
+
+Every reviewed attempt is appended to `progress/attempts.jsonl` in the project root — one JSON object per line. This file is the source of truth for repeat-avoidance and gap analysis; a Notion page or any other tracker is a mirror of it, not a replacement.
+
+Use the helper in this skill's folder (stdlib only):
+
+```bash
+python3 <skill-dir>/scripts/progress.py add --id d07/p3 --type pyspark --tags R:M,O:M \
+    --pattern sessionization --result fail --time 22 --target 18 \
+    --miss ritual-boundary,sort --note "exactly-30-min gap treated as new session"
+python3 <skill-dir>/scripts/progress.py summary   # pass rate by type / tag / pattern, miss frequency, overtime
+python3 <skill-dir>/scripts/progress.py seen      # ids already attempted
+```
+
+| Field | Rule |
+|---|---|
+| `id` | Folder-relative for local problems (`d07/p3`, `mock2/q4`); `lc-<number>` for LeetCode |
+| `type` | `sql` / `python` / `pyspark` / `debug` |
+| `tags` | Both calibration axes, e.g. `R:H,O:M` |
+| `result` | `pass` = correct without help · `guided` = correct only after a hint or review fix · `fail` = not solved in the session |
+| `time` / `target` | Minutes. Ask the user for the actual time — never estimate it |
+| `miss` | Fixed vocabulary, so misses can be counted: `ritual-empty`, `ritual-coalesce`, `ritual-join`, `ritual-boundary`, `decoy-leak`, `sort`, `truthiness`, `dedup`, `null-handling`, `precision`, `spec-misread`, `toolchain`, `syntax`, `timeout`, `other` |
+
+Rules:
+- Log once per attempt, right after the review — a retry of the same problem is a new line, not an edit.
+- A solution that passes only after the coach pointed something out is `guided`, and the thing pointed out goes in `miss`. Recording it as `pass` hides exactly the data gap analysis needs.
+- Never invent a past result or time. If it was not recorded, leave the field empty.
 
 ## Reference Files
 
