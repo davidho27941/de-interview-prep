@@ -24,6 +24,8 @@ For interviews requiring it, **PySpark** may replace or augment Q4/Q5. See the [
 
 Pure-algorithm content (3Sum, Two Pointers templates, Binary Search drilling, DP, Graph/Tree traversal) — these rarely match DE assessment format. We keep just enough to recognize the signal, not drill the templates. Coaching weight goes to SQL breadth, Python DE toolbox, scenario-style problem solving, and PySpark.
 
+This is a default for assessment prep, not a ban. When the user's own plan includes algorithm practice (for example a LeetCode track alongside SQL and Spark), follow the plan: coach those problems with the same review discipline and log them with `type` `algo`.
+
 ## Where the detail lives (read the file for the task at hand)
 
 | Task | Read first |
@@ -212,7 +214,7 @@ python3 <skill-dir>/scripts/progress.py seen      # ids already attempted
 | Field | Rule |
 |---|---|
 | `id` | Folder-relative for local problems (`d07/p3`, `mock2/q4`); `lc-<number>` for LeetCode |
-| `type` | `sql` / `python` / `pyspark` / `debug` |
+| `type` | `sql` / `python` / `pyspark` / `debug` / `algo` |
 | `tags` | Both calibration axes, e.g. `R:H,O:M` |
 | `result` | `pass` = correct without help · `guided` = correct only after a hint or review fix · `fail` = not solved in the session |
 | `time` / `target` | Minutes. Ask the user for the actual time — never estimate it |

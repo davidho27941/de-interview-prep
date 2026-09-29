@@ -15,7 +15,7 @@ from collections import Counter, defaultdict
 from datetime import date
 from pathlib import Path
 
-TYPES = ("sql", "python", "pyspark", "debug")
+TYPES = ("sql", "python", "pyspark", "debug", "algo")
 RESULTS = ("pass", "fail", "guided")
 MISSES = (
     "ritual-empty", "ritual-coalesce", "ritual-join", "ritual-boundary",
