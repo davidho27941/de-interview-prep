@@ -68,7 +68,7 @@ with Path('out.csv').open('w', encoding='utf-8', newline='') as f:
 
 ## File Filtering Traps (the #1 IO failure mode)
 
-Per the Input Convention in [SKILL.md](SKILL.md), every problem's input folder contains decoy files. Naive enumeration will pick them up and crash or skew results. Build these reflexes:
+Per the Input Convention in [problem-design.md](problem-design.md), every problem's input folder contains decoy files. Naive enumeration will pick them up and crash or skew results. Build these reflexes:
 
 ### Enumeration patterns (pick deliberately)
 

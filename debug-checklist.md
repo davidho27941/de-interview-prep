@@ -68,28 +68,24 @@ When designing a debug problem for practice:
 
 ## Debug Problem Template
 
+Debug problems follow the same folder-based layout as every other problem ([problem-design.md](problem-design.md)) — the data is in files, never an in-script literal.
+
+```
+challenges/{dNN|mockN}/qK/
+├── problem.md     # pipeline description, expected behavior as business rules, error log excerpt
+├── qK.ipynb       # setup / buggy pipeline function (user fixes in place) / tests
+├── input/         # records as CSV / JSONL (+ decoys) — the edge cases live in these files
+└── output/        # the fixed pipeline writes here; tests read it back
+```
+
+`problem.md` states the expected behavior (filter rule, dedup rule, None handling, aggregates, output sort) and includes the error log, which hints at each bug without giving away the fix. Constraint line: only modify `[function_name]`, time limit `[N]` minutes.
+
+Notebook solution cell:
+
 ```python
-# Pipeline: [Description of what it does]
-#
-# Expected behavior:
-#   - [Rule 1: e.g., filter out inactive records]
-#   - [Rule 2: e.g., dedup by ID]
-#   - [Rule 3: e.g., handle None values]
-#   - [Rule 4: e.g., compute aggregates]
-#   - [Rule 5: e.g., sort output]
-#
-# Constraints: Only modify [function_name], time limit [N] minutes
-
-data = [...]  # include edge cases in test data
-
-expected_output = [...]  # correct output with all bugs fixed
-
-error_log = """..."""  # hints at bugs without giving away fixes
-
-def buggy_function(data):
-    # BUG 1: [description]
-    # BUG 2: [description]
-    # BUG 3: [description]
-    # BUG 4: [description]
+def run_pipeline(input_dir: Path, output_dir: Path) -> None:
+    # reads input_dir, aggregates, writes output_dir — contains the planted bugs
     ...
 ```
+
+The bug list (BUG 1..N with descriptions) is designer-only: keep it in `_verify_problem.py`, where each bug doubles as a mutation — reverting any single fix must make the tests fail. Never leave `# BUG n` comments in the published notebook.

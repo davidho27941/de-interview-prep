@@ -2,7 +2,7 @@
 
 ## Exam Structure
 
-Each problem is tagged on TWO axes per the calibration in [SKILL.md](SKILL.md): **Reading** (R) and **Operations** (O). Mock exam composition is chosen by selecting a mix of (R, O) tags — not by a single "Easy/Medium/Hard" label.
+Each problem is tagged on TWO axes per the calibration in [problem-design.md](problem-design.md): **Reading** (R) and **Operations** (O). Mock exam composition is chosen by selecting a mix of (R, O) tags — not by a single "Easy/Medium/Hard" label.
 
 ## Structural Rules (apply to EVERY mock)
 
@@ -137,19 +137,13 @@ For each Python / PySpark / Debug problem, the problem designer MUST:
 6. Optionally include encoding traps or empty files (also unmentioned in spec)
 7. Write tests that **read the output file back** and assert its contents — not asserts on a returned object
 
-### Decoy mix per difficulty (designer reference — NOT exposed in spec)
+### Decoy mix per difficulty
 
-These are physical files the designer puts in `input/`; the user must discover and filter them. They are NEVER listed in the problem markdown.
-
-| Calibration | Min decoys | Decoy types to include |
-|---|---|---|
-| **O:Easy** | 1-2 | Wrong extension, or hidden file |
-| **O:Medium** | 2-3 | Wrong extension + backup file (.bak) + hidden |
-| **O:Hard** | 3-5 | All of medium + subdirectory + empty file + encoding edge case |
+Minimum decoy counts and types per O level are defined once in [problem-design.md](problem-design.md) §Input Convention. Decoys are physical files in `input/`; they are NEVER listed in the problem markdown.
 
 ### Notebook vs Notion content split
 
-The notebook problem markdown is the **assessment-realistic surface**. The paired Notion prep/retro page is where scaffolding lives. Per [SKILL.md](SKILL.md):
+The notebook problem markdown is the **assessment-realistic surface**. The paired Notion prep/retro page is where scaffolding lives. Per [problem-design.md](problem-design.md):
 
 | In notebook (assessment surface) | In Notion (prep/retro) |
 |---|---|
@@ -160,129 +154,9 @@ The notebook problem markdown is the **assessment-realistic surface**. The paire
 |   | Completion record (time, passed, mistake, takeaway) |
 |   | Calibration tags + scoring |
 
-### Canonical two-file structure (LeetCode-style split view)
+### Problem statement, notebook pointer, and setup cell
 
-Each problem lives as TWO files in its per-Q folder:
-
-- `problem.md` — full problem statement (below template)
-- `qK.ipynb` — short pointer cell + setup + solution + tests
-
-Rationale: the user opens `problem.md` in a left pane and the notebook in a right pane, so re-reading the spec while coding is instant (no scrolling inside the notebook).
-
-### Canonical `problem.md` template (platform-style)
-
-```
-# Q{N} — {Problem name} [R:{level}, O:{level}] (target {N} min)
-
-## Description
-{Business context paragraph, then data-landscape paragraph(s), then computation
- semantics WOVEN INTO PROSE: output grain, derived-column definitions,
- inclusion/exclusion rules, boundary semantics. FINAL paragraph = deliverable
- sentence: "Write the result to output/ as {format}, partitioned by X,
- sorted by A ASC" — or "row order is not required (tests sort before
- comparing)". NO numbered solution steps.
- NO function/algorithm hints. NO trailing clarifications section.}
-
-### Rule 1 — {Name}   (R:Hard: ≥3 named rule subsections)
-{1 paragraph prose stating the rule.}
-
-Examples:
-- {Example bullet — concrete IDs and values}
-- {Edge case bullet — NULL / zero / boundary}
-- {Contrast bullet — positive case}
-- {Optional pathological case}
-
-## Example(s)
-{LeetCode-style worked example: input excerpt → output rows → explanation.}
-
-## Input
-
-Folder: `challenges/mockN/qK/input/`
-
-### {source-1 folder or file}/
-{Brief format description.}
-Schema (every column MUST have explicit type):
-- `col1: string`
-- `col2: date`
-- `col3: double`
-
-`{filename}` sample content (logical view if parquet):
-
-| col1 | col2 | ... |
-|---|---|---|
-| {sample row using IDs from scenario rule examples} |
-| {another sample row including an edge case} |
-| ... |
-
-### {source-2}
-{Brief format description.}
-
-\`\`\`
-header,row,format
-{sample row}
-...
-\`\`\`
-
-> {Optional 1-line note tying sample data back to scenario examples}
-
-### {source-3} ...
-### {source-4} ...
-
-## Output
-
-Folder: `challenges/mockN/qK/output/`
-Format: {parquet/csv/json}, partitioned by ...
-
-Schema:
-
-| field | type |
-|---|---|
-| ... | ... |
-
-{Ordering contract restated: exact sort keys, or "row order is not required"}
-
-Sample (first N rows, for schema comparison):
-
-| ... |
-
-## Constraints
-{Data size, value domains, format guarantees, and which boundary conditions
- EXIST in data (duplicates / exact-boundary gaps / midnight-crossing /
- orphan keys) — LeetCode-style disclosure.}
-```
-
-**Key structural rules** (also in [SKILL.md](SKILL.md) Calibration section):
-
-- **Requirements woven into Description/Rules — never appended.** Ordering, return format, partitioning, derived-column formulas all appear in the statement body. A separate clarifications dump = the statement failed. (Retired anti-pattern: `## Task` numbered-steps + trailing clarifications sections — Task steps leak the solution recipe.)
-- **The deliverable is a sentence, not a recipe.** Final Description paragraph states WHAT to produce and WHERE to write. Never name functions or algorithm steps (`to_date`, "GroupBy → count", "lag → cumsum").
-- **Ordering contract explicit and verifiable.** Exact order → single sorted file, test compares write order strictly. Otherwise "order is not required" → test re-sorts. Never demand a sort the test can't physically verify (global order inside a partitioned dataset is not a real contract).
-- **No off-topic terminology** — don't mention concepts from sibling problems (e.g., "session" inside a plain counting problem).
-- Examples are **bullets, not prose-embedded** — easier to parse individually; reading load comes from quantity + cross-referencing.
-- **Each input source must include sample content**, not just schema. Parquet → logical-view table. CSV/JSONL/TXT → raw text in fenced block.
-- Sample IDs cross-reference scenario rule examples (e.g., if Rule 1 mentions `O8803 / refund_amount=NULL`, refunds.json sample must contain that row).
-- **Every schema column MUST have an explicit type.** `col: string` / `col: timestamp` / `col: double`, never bare `col1, col2, col3`. Implicit types leak decisions to the reader (e.g., `payment_ts` could be timestamp or date).
-- **Money columns MUST use `decimal(p, 2)` OR spec must state explicit rounding.** `DoubleType` + `sum + ==` on currency silently misclassifies via IEEE 754 accumulator drift. If your canonical solution does any equality/inequality comparison on aggregated money, commit to precision handling in the spec. Real failure mode: a reconciliation problem shipped with `DoubleType` amounts and `matched: paid_total == invoice_amount` — an invoice of $2508.06 got misclassified as overpaid because the payment sum drifted to `2508.0600000000004`.
-- **No decoy listing, no Pre-Submit Ritual** in the notebook markdown — they go to Notion. Decoys still exist physically in `input/`.
-
-### Canonical notebook cell-0 pointer (LeetCode-style split)
-
-```
-# QK — {Problem name}
-
-📖 **Problem:** `problem.md`
-
-| | |
-|---|---|
-| Calibration | `[R:H, O:{level}]` |
-| Target time | {N} min |
-| Focus | {pattern being drilled} |
-| Input | `input/...` (list files/subfolders) |
-| Output | `output/` (Parquet, partitioned by {key}) |
-```
-
-Cells 1-3: setup + solution scaffold + tests (DO NOT MODIFY). All spec content stays in `problem.md`.
-
-**Setup cell must match the declared toolchain.** A pure-Python problem gets NO Spark session — pre-loading a tool the problem forbids is an affordance that invites the violation, and tests verify outputs, not toolchains, so nothing will catch it. The environment is part of the assessment surface: provide exactly what the real platform would provide, nothing more.
+Every mock question uses the two-file layout (`problem.md` + pointer notebook `qK.ipynb`). The `problem.md` template, the key structural rules, the cell-0 pointer, and the setup-cell toolchain rule are defined once in [problem-design.md](problem-design.md) §Problem Calibration — follow them there; they are not repeated here.
 
 ### Canonical example
 
@@ -345,12 +219,14 @@ User solves on the platform; we host the prep wrapper (Problem focus / Pattern /
 
 ## Q3-Q4: Python Problem Design
 
-### Q3 (Medium) — Pick from:
-- Counter / frequency analysis with sorting
-- Two Pointers on sorted data
-- Sliding Window (fixed or variable)
-- Prefix Sum (especially with negative numbers)
-- Binary Search application
+### Q3 (Medium) — Standard-library scenario, pick from:
+- Counter / frequency analysis with tiebreaker sorting
+- Log or CSV/JSONL parsing with validation and malformed-row handling
+- Dedup + aggregation over multiple input files
+- Datetime bucketing / time-window grouping
+- Sliding Window or Prefix Sum ONLY when the scenario naturally calls for it (see [patterns.md](patterns.md))
+
+Pure-algorithm drills (Two Pointers, Binary Search, DP, graph/tree) are out of scope per SKILL.md — do not use them as Q3.
 
 ### Q4 (Hard) — Custom DE scenario:
 - Log parsing and session analysis
@@ -359,22 +235,11 @@ User solves on the platform; we host the prep wrapper (Problem focus / Pattern /
 - Time-series anomaly detection
 - ETL transformation with complex rules
 
-### Q4 Custom Problem Template
-```python
-# Scenario: [realistic DE context]
-# Rules:
-#   - [dedup rule]
-#   - [null/invalid handling]
-#   - [aggregation logic]
-#   - [output format and sort]
-# Constraints: standard library only, [time limit]
+### Q3/Q4 data requirements
 
-data = [...]  # 10-20 records with edge cases
+Author both per [problem-design.md](problem-design.md): data lives in files under `input/` (never as an in-script `data = [...]` literal), the statement is `problem.md`, and the solution writes to `output/`.
 
-expected_output = [...]
-```
-
-Include in test data:
+The input files must contain:
 - Duplicate records (same key)
 - Null/None values
 - Zero values (test truthiness)
@@ -388,6 +253,7 @@ Key rules:
 - 3-5 bugs per problem
 - Include error log with hints
 - Only one function to fix
+- Data is read from `input/` files, not an in-script literal
 - 10-15 minute target time
 
 ## Scoring and Assessment

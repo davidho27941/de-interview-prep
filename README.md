@@ -23,11 +23,17 @@ A Claude Code skill that coaches you through Data Engineer coding test preparati
 ## Files
 
 ```
-SKILL.md              — Main skill instructions and workflows
-patterns.md           — Pattern reference (Sliding Window, Prefix Sum, SQL Signals, etc.)
+SKILL.md              — Entry point: role, task routing, Pre-Submit Ritual, solving template, workflows
+problem-design.md     — Problem authoring: input/decoy convention, problem.md template, pre-publish checks, calibration
+mock-exam-guide.md    — Mock exam variants, structural rules, scoring, and time management
+day-structure.md      — Prep-day layout, review-page template, problem count sizing
 debug-checklist.md    — Top 5 pipeline bug patterns + debug problem template
-mock-exam-guide.md    — Mock exam design, scoring, and time management guide
+patterns.md           — SQL breadth, DE-relevant Python patterns, scenario templates
+python-de-toolbox.md  — Python reflexes for DE work (regex, pathlib, datetime, JSON, encoding)
+spark/                — PySpark references (core, I/O formats, joins, windows, NULL/money/dates, nested/UDF, performance, streaming concepts)
 ```
+
+`SKILL.md` is loaded on every invocation and stays small; the other files are read only when the task needs them.
 
 ## Installation
 
@@ -54,7 +60,9 @@ Then start a new Claude Code session and invoke with `/de-interview-prep`.
 
 ## Patterns Covered
 
-**Python:** Sliding Window, Prefix Sum + HashMap, Two Pointers, 3Sum, Binary Search, Counter/HashMap
+**Python:** Counter/HashMap, regex, file I/O and filtering, datetime, JSON streaming, Sliding Window, Prefix Sum + HashMap (pure-algorithm drills such as 3Sum and Binary Search are intentionally deprioritized)
+
+**PySpark:** DataFrame transforms, joins, window functions, sessionization, NULL and money handling, I/O formats
 
 **SQL:** JOIN decisions, Window Functions (RANK/DENSE_RANK/ROW_NUMBER), Gap-and-Island, GROUP BY + HAVING, CTE, CASE WHEN, GROUP_CONCAT
 
